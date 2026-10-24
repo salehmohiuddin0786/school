@@ -185,7 +185,35 @@ Suspends or activates an institution tenant.
 
 ---
 
-## 9. User Management
+## 9. Timetable & Scheduling (`/api/v1/timetable`)
+
+- `POST /api/v1/timetable/assignments`: Assigns a teacher to a class subject for an academic year. Required roles: `SCHOOL_ADMIN`, `PRINCIPAL`.
+- `POST /api/v1/timetable/entries`: Schedules a class slot with automated 3-way conflict detection (teacher, section, classroom overlap). Returns `409 Conflict` if occupied. Required roles: `SCHOOL_ADMIN`, `PRINCIPAL`.
+- `GET /api/v1/timetable/section/:sectionId`: Retrieves weekly schedule for a class section.
+- `GET /api/v1/timetable/teacher/:teacherProfileId`: Retrieves weekly schedule for a teacher.
+- `GET /api/v1/timetable/my-schedule`: Authenticated student retrieves their active class timetable. Required role: `STUDENT`.
+- `DELETE /api/v1/timetable/entries/:id`: Removes a scheduled class slot. Required roles: `SCHOOL_ADMIN`, `PRINCIPAL`.
+
+---
+
+## 10. Attendance & Leaves (`/api/v1/attendance`)
+
+- `POST /api/v1/attendance/record`: Records bulk daily attendance for a class section. Required permission: `attendance.mark`.
+  - Body: `{ sectionId, date: "YYYY-MM-DD", records: [{ studentId, status: "PRESENT"|"ABSENT"|"LATE"|"HALF_DAY"|"EXCUSED", remarks }] }`.
+- `GET /api/v1/attendance/section/:sectionId`: Retrieves section attendance for a specific date (default: today). Required permission: `attendance.read`.
+- `GET /api/v1/attendance/section/:sectionId/stats`: Computes daily section metrics: total enrolled, present count, absent count, and attendance percentage.
+- `PUT /api/v1/attendance/:id`: Corrects an individual attendance record with required reason and records compliance entry in `AuditLog`. Required permission: `attendance.approve`.
+- `GET /api/v1/attendance/student/:studentId/summary`: Calculates student total days, days present, absent, late, percentage, and deficiency status (`SATISFACTORY` vs `ATTENDANCE_DEFICIENT`).
+  - *Student role*: Allowed for own record only.
+  - *Parent role*: Allowed for verified linked children only.
+  - *Staff*: Requires `attendance.read`.
+- `POST /api/v1/attendance/leaves/apply`: Faculty/staff applies for leave (`CASUAL`, `SICK`, `EARNED`, `MATERNITY`, `UNPAID`).
+- `PATCH /api/v1/attendance/leaves/:id/review`: Principal/Admin approves or rejects leave and decrements `StaffLeaveBalance`. Required roles: `SCHOOL_ADMIN`, `PRINCIPAL`.
+- `GET /api/v1/attendance/leaves`: Lists leave requests with status filter. Required roles: `SCHOOL_ADMIN`, `PRINCIPAL`, `HR_MANAGER`.
+
+---
+
+## 11. User Management
 
 ### `GET /api/v1/users`
 Lists users inside the active tenant with pagination and role filtering.

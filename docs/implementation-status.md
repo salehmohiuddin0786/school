@@ -30,16 +30,24 @@
 
 ---
 
-## Phase 3 — Academics and Attendance (NEXT ⏳)
-- [ ] Teacher subject allocations and timetable scheduling
-- [ ] Automated timetable conflict detection (teacher, classroom, section overlap)
-- [ ] Daily student attendance recording with authorized correction logs
-- [ ] Staff leave balance calculation and leave approval workflows
-- [ ] Attendance summaries and percentage exports
+## Phase 3 — Academics and Attendance (COMPLETED ✅)
+- [x] Teacher assignments to class subjects (`TeacherAssignment`) with unique composite checks
+- [x] Timetable scheduling engine (`TimetableEntry`) with automated three-dimensional conflict detection:
+  - Teacher time overlap conflict detection (409 Conflict)
+  - Section class overlap conflict detection (409 Conflict)
+  - Classroom occupancy overlap conflict detection (409 Conflict)
+- [x] Class section timetable lookup and teacher timetable lookup
+- [x] Student personalized schedule lookup (`/api/v1/timetable/my-schedule`)
+- [x] Daily student attendance recording in bulk (`/api/v1/attendance/record`)
+- [x] Authorized attendance correction (`/api/v1/attendance/:id`) with mandatory remark audit logging
+- [x] Student attendance summary reports calculating attendance percentage, present/absent/late totals, and status flag (SATISFACTORY vs DEFICIENT)
+- [x] Section daily statistics calculating marked student counts and attendance percentages
+- [x] Staff leave management (`LeaveRequest`): leave application, principal approval/rejection, and leave balance decrementing
+- [x] Automated test suite passing with 100% success rate (46/46 tests passing across 5 test suites)
 
 ---
 
-## Phase 4 — Examinations and LMS (PLANNED ⏳)
+## Phase 4 — Examinations and LMS (NEXT ⏳)
 - [ ] Exam scheduling and assessment weightage configuration
 - [ ] Marks entry workflows with teacher authorization checks
 - [ ] Grading scales, GPA/CGPA calculation, and result publication

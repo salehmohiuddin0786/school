@@ -16,6 +16,8 @@ import academicRoutes from './modules/academics/academics.routes.js';
 import studentRoutes from './modules/students/student.routes.js';
 import parentRoutes from './modules/parents/parent.routes.js';
 import teacherRoutes from './modules/teachers/teacher.routes.js';
+import timetableRoutes from './modules/timetable/timetable.routes.js';
+import attendanceRoutes from './modules/attendance/attendance.routes.js';
 
 export function createApp() {
   const app = express();
@@ -77,6 +79,8 @@ export function createApp() {
   apiV1.use('/students', studentRoutes);
   apiV1.use('/parents', parentRoutes);
   apiV1.use('/teachers', teacherRoutes);
+  apiV1.use('/timetable', timetableRoutes);
+  apiV1.use('/attendance', attendanceRoutes);
 
   app.use('/api/v1', apiV1);
 
