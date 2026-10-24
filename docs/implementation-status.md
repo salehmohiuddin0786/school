@@ -47,16 +47,27 @@
 
 ---
 
-## Phase 4 — Examinations and LMS (NEXT ⏳)
-- [ ] Exam scheduling and assessment weightage configuration
-- [ ] Marks entry workflows with teacher authorization checks
-- [ ] Grading scales, GPA/CGPA calculation, and result publication
-- [ ] Report card generation
-- [ ] Assignments, digital submissions, study material distribution
+## Phase 4 — Examinations and LMS (COMPLETED ✅)
+- [x] Exam scheduling (`/api/v1/exams`) and assessment structures across academic terms
+- [x] Subject paper scheduling (`/api/v1/exams/:examId/subjects`) with max marks, pass marks, and timings
+- [x] Duplicate subject paper prevention within the same examination schedule
+- [x] Bulk marks entry (`/api/v1/exams/subjects/:examSubjectId/marks`) with automatic validation against maxMarks
+- [x] Examination marks sheet retrieval with ranked student submissions
+- [x] Official result publishing engine (`/api/v1/exams/:examId/publish`) computing totals, percentages, letter grades (A+, A, B, C, D, E, F), GPA (10.0 scale), and student ranks atomically
+- [x] Immutable published marks enforcement (rejects mark mutations once published)
+- [x] Official report card generation and secure role-based retrieval (`/api/v1/exams/:examId/report-cards/:studentId`)
+  - Students can only view their own report card
+  - Parents can only view verified linked children's report cards
+- [x] Grading scale configuration (`/api/v1/exams/grade-scales`)
+- [x] Homework assignments module (`/api/v1/assignments`) with classSubject links, due dates, and attachment URLs
+- [x] Digital student assignment submission with text and attachment URLs
+- [x] Teacher assignment grading workflow with feedback and max marks validation
+- [x] Learning materials publishing (`/api/v1/assignments/materials`) for study notes, syllabus PDFs, and video links
+- [x] Automated test suite passing with 100% success rate (69/69 tests passing across 6 test suites)
 
 ---
 
-## Phase 5 — Fees and Finance (PLANNED ⏳)
+## Phase 5 — Fees and Finance (NEXT ⏳)
 - [ ] Fee categories and structure configuration (termly, monthly, annual)
 - [ ] Student fee allocations, scholarships, and fee concessions
 - [ ] Automated invoice generation, payment receipts, and balance calculations

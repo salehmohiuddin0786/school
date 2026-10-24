@@ -51,7 +51,13 @@ export function errorHandler(err, req, res, next) {
     err.message &&
     (err.message.includes('already exists') ||
       err.message.includes('already assigned') ||
+      err.message.includes('already scheduled') ||
+      err.message.includes('already published') ||
+      err.message.includes('already been published') ||
+      err.message.includes('exceeds') ||
+      err.message.includes('cannot exceed') ||
       err.message.includes('is required') ||
+      err.message.includes('cannot publish') ||
       err.message.includes('not found'))
   ) {
     const status = err.message.includes('not found') ? 404 : 400;

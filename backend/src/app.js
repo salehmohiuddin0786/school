@@ -18,6 +18,8 @@ import parentRoutes from './modules/parents/parent.routes.js';
 import teacherRoutes from './modules/teachers/teacher.routes.js';
 import timetableRoutes from './modules/timetable/timetable.routes.js';
 import attendanceRoutes from './modules/attendance/attendance.routes.js';
+import examsRoutes from './modules/exams/exams.routes.js';
+import assignmentsRoutes from './modules/assignments/assignments.routes.js';
 
 export function createApp() {
   const app = express();
@@ -81,6 +83,8 @@ export function createApp() {
   apiV1.use('/teachers', teacherRoutes);
   apiV1.use('/timetable', timetableRoutes);
   apiV1.use('/attendance', attendanceRoutes);
+  apiV1.use('/exams', examsRoutes);
+  apiV1.use('/assignments', assignmentsRoutes);
 
   app.use('/api/v1', apiV1);
 

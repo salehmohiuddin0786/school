@@ -244,5 +244,38 @@ Updates user profile information and assigned roles.
 - **Auth**: Required (`users.manage` permission).
 
 ### `PATCH /api/v1/users/:id/status`
-Suspends or reactivates a user account.
+Updates user active/suspended state.
 - **Auth**: Required (`users.manage` permission).
+
+---
+
+## 12. Examinations & Grading (`/api/v1/exams`)
+
+- `POST /api/v1/exams`: Schedules an institution examination across terms. Required permission: `exams.manage`.
+  - Body: `{ academicYearId, name, examType, startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD" }`.
+- `GET /api/v1/exams`: Lists all examinations with subject and report card counts. Filterable by `academicYearId`. Required permission: `exams.read`.
+- `GET /api/v1/exams/:id`: Retrieves full examination details including scheduled papers and mark entry progress.
+- `POST /api/v1/exams/:examId/subjects`: Schedules subject examination papers with maxMarks, passMarks, and session timings. Required permission: `exams.manage`.
+- `POST /api/v1/exams/subjects/:examSubjectId/marks`: Bulk records subject marks for students. Validates marks <= maxMarks. Required permission: `marks.enter`.
+- `GET /api/v1/exams/subjects/:examSubjectId/marks`: Retrieves subject marks sheet with student performance. Required permission: `exams.read`.
+- `POST /api/v1/exams/:examId/publish`: Calculates final totals, percentages, letter grades, GPA, and class ranks, and publishes report cards atomically. Locks marks against future changes. Required permission: `results.publish`.
+- `GET /api/v1/exams/:examId/report-cards/:studentId`: Retrieves official student report card.
+  - *Student role*: Allowed for own record only.
+  - *Parent role*: Allowed for verified linked children only.
+  - *Staff*: Requires `exams.read`.
+- `POST /api/v1/exams/grade-scales`: Configures grading scale boundaries (e.g. A+: 90-100%, 10.0 GPA). Required permission: `exams.manage`.
+- `GET /api/v1/exams/grade-scales`: Lists institution grade scales. Required permission: `exams.read`.
+
+---
+
+## 13. Assignments & LMS (`/api/v1/assignments`)
+
+- `POST /api/v1/assignments`: Creates homework or project assignment linked to a class subject with due dates and optional attachment URLs. Required permission: `assignments.manage`.
+- `GET /api/v1/assignments`: Lists assignments with filters (`classSubjectId`, `teacherProfileId`). Automatically attaches submission status for logged-in students.
+- `GET /api/v1/assignments/:id`: Retrieves assignment details with teacher and submission metrics.
+- `POST /api/v1/assignments/:id/submit`: Student submits digital assignment with submission text and/or file link.
+- `GET /api/v1/assignments/:id/submissions`: Teacher/Admin views all student submissions for an assignment. Required permission: `assignments.manage`.
+- `PATCH /api/v1/assignments/submissions/:submissionId/grade`: Evaluates and grades student submission with feedback. Enforces marks <= maxMarks. Required permission: `assignments.manage`.
+- `POST /api/v1/assignments/materials`: Publishes syllabus notes, reference documents, or lecture links. Required permission: `assignments.manage`.
+- `GET /api/v1/assignments/materials`: Lists published study resources filtered by `classSubjectId`.
+
