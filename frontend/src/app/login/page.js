@@ -63,6 +63,14 @@ function LoginForm() {
       dest: '/owner',
       icon: BarChart3,
     },
+    {
+      role: 'Parent',
+      badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+      email: 'parent.patel@greenwood.edu',
+      password: 'Parent@Greenwood2026!',
+      dest: '/parent',
+      icon: Users,
+    },
   ];
 
   useEffect(() => {
@@ -125,6 +133,8 @@ function LoginForm() {
         router.push('/student');
       } else if (data.role === 'owner') {
         router.push('/owner');
+      } else if (data.role === 'parent') {
+        router.push('/parent');
       } else {
         router.push('/admin');
       }

@@ -317,3 +317,187 @@ export async function listLeaveRequests(tenantId, { status, page = 1, limit = 20
 
   return { leaves, total };
 }
+
+/**
+ * Read-only attendance summary for authenticated teacher.
+ * Teachers cannot mark or modify their own attendance.
+ */
+export async function getTeacherSelfAttendanceSummary(tenantId, teacherUserId) {
+  const teacherProfile = await prisma.teacherProfile.findFirst({
+    where: { userId: teacherUserId, tenantId },
+  });
+
+  if (!teacherProfile) {
+    const err = new Error('Teacher profile not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const records = await prisma.staffAttendance.findMany({
+    where: {
+      tenantId,
+      teacherProfileId: teacherProfile.id,
+    },
+    orderBy: { date: 'desc' },
+    take: 60,
+  });
+
+  const total = records.length;
+  const present = records.filter((r) => r.status === 'PRESENT').length;
+  const late = records.filter((r) => r.status === 'LATE').length;
+  const absent = records.filter((r) => r.status === 'ABSENT').length;
+  const halfDay = records.filter((r) => r.status === 'HALF_DAY').length;
+
+  const percentage = total > 0 ? Number((((present + late + halfDay * 0.5) / total) * 100).toFixed(1)) : 100.0;
+
+  return {
+    readOnly: true,
+    teacherProfileId: teacherProfile.id,
+    employeeCode: teacherProfile.employeeCode,
+    totalDays: total,
+    presentDays: present,
+    lateDays: late,
+    absentDays: absent,
+    halfDays: halfDay,
+    attendanceRate: percentage,
+    attendancePercentage: percentage,
+    recentAttendance: records,
+  };
+}
+
+// -------------------------------------------------------------
+// PERIOD-WISE / SUBJECT-WISE ATTENDANCE ENGINE
+// -------------------------------------------------------------
+
+export async function recordPeriodAttendance(tenantId, { timetableEntryId, date, records }, recordedById = null, req = null) {
+  const slot = await prisma.timetableEntry.findFirst({
+    where: { id: timetableEntryId, tenantId },
+    include: {
+      section: { select: { id: true, name: true } },
+      subject: { select: { id: true, name: true, code: true } },
+      teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+    },
+  });
+
+  if (!slot) {
+    const err = new Error('Timetable period entry not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const dateObj = new Date(date);
+
+  const results = await prisma.$transaction(async (tx) => {
+    const updatedRecords = [];
+
+    for (const item of records) {
+      const existing = await tx.periodAttendance.findUnique({
+        where: {
+          tenantId_timetableEntryId_studentId_date: {
+            tenantId,
+            timetableEntryId,
+            studentId: item.studentId,
+            date: dateObj,
+          },
+        },
+      });
+
+      if (existing) {
+        const updated = await tx.periodAttendance.update({
+          where: { id: existing.id },
+          data: {
+            status: item.status,
+            remarks: item.remarks || null,
+            recordedById,
+          },
+        });
+        updatedRecords.push(updated);
+      } else {
+        const created = await tx.periodAttendance.create({
+          data: {
+            tenantId,
+            timetableEntryId,
+            studentId: item.studentId,
+            date: dateObj,
+            status: item.status,
+            remarks: item.remarks || null,
+            recordedById,
+          },
+        });
+        updatedRecords.push(created);
+      }
+    }
+
+    return updatedRecords;
+  });
+
+  await logAudit({
+    tenantId,
+    userId: recordedById,
+    action: 'RECORD_PERIOD_ATTENDANCE',
+    entityType: 'PERIOD_ATTENDANCE',
+    newValues: {
+      timetableEntryId,
+      subject: slot.subject.name,
+      section: slot.section.name,
+      date,
+      count: records.length,
+    },
+    req,
+  });
+
+  return {
+    timetableEntryId,
+    subjectName: slot.subject.name,
+    sectionName: slot.section.name,
+    date,
+    totalMarked: results.length,
+    records: results,
+  };
+}
+
+export async function getPeriodAttendance(tenantId, timetableEntryId, date) {
+  const dateObj = new Date(date);
+
+  const slot = await prisma.timetableEntry.findFirst({
+    where: { id: timetableEntryId, tenantId },
+    include: {
+      section: true,
+      subject: true,
+      classRoom: true,
+      teacher: {
+        include: {
+          user: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  if (!slot) {
+    const err = new Error('Timetable entry not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const records = await prisma.periodAttendance.findMany({
+    where: {
+      tenantId,
+      timetableEntryId,
+      date: dateObj,
+    },
+    include: {
+      student: {
+        include: {
+          user: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return {
+    slot,
+    date,
+    records,
+  };
+}

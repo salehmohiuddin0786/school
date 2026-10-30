@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   DollarSign,
   School,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 
 export default function DashboardLayout({ children, role = 'admin' }) {
@@ -37,16 +39,15 @@ export default function DashboardLayout({ children, role = 'admin' }) {
       .then(data => {
         if (data.authenticated && data.user) {
           setUser(data.user);
-          // Strict Role-Based Protected Routes
+          // Strict Role-Based Protected Routes — No cross-portal bleeding
           const userRole = data.user.role;
           if (role && userRole !== role) {
-            // Allow owner/admin crossover, otherwise isolate students and teachers
-            if (!(userRole === 'owner' && role === 'admin') && !(userRole === 'admin' && role === 'owner')) {
-              if (userRole === 'student') router.replace('/student');
-              else if (userRole === 'teacher') router.replace('/teacher');
-              else if (userRole === 'admin') router.replace('/admin');
-              else if (userRole === 'owner') router.replace('/owner');
-            }
+            if (userRole === 'student') router.replace('/student');
+            else if (userRole === 'teacher') router.replace('/teacher');
+            else if (userRole === 'admin') router.replace('/admin');
+            else if (userRole === 'owner') router.replace('/owner');
+            else if (userRole === 'parent') router.replace('/parent');
+            else router.replace('/login');
           }
         } else {
           router.replace('/login');
@@ -67,28 +68,48 @@ export default function DashboardLayout({ children, role = 'admin' }) {
       { name: 'Faculty & Teachers', href: '/admin/teachers', icon: Users },
       { name: 'Student Roll Call', href: '/admin/attendance', icon: CalendarCheck },
       { name: 'Staff Attendance', href: '/admin/teacher-attendance', icon: UserCheck },
+      { name: 'Teacher Substitution', href: '/admin/substitutions', icon: RefreshCw },
       { name: 'Classes & Fees', href: '/admin/classes-subjects', icon: BookOpen },
-      { name: 'Exams & Timetable', href: '/admin/exams', icon: Award },
+      { name: 'Fee Counter POS', href: '/admin/fees', icon: CreditCard },
+      { name: 'Exam Timetable', href: '/admin/exams', icon: Award },
+      { name: 'Report Cards (CBSE)', href: '/admin/exams/report-cards', icon: FileText },
+      { name: 'Class Timetable', href: '/admin/timetable', icon: Clock },
       { name: 'Bus Transport', href: '/admin/buses', icon: Bus },
       { name: 'Notice Board', href: '/admin/notices', icon: Bell },
     ],
     teacher: [
       { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
-      { name: 'Mark Roll Call', href: '/teacher/attendance', icon: CalendarCheck },
+      { name: 'Attendance & Roll Call', href: '/teacher/attendance', icon: CalendarCheck },
+      { name: 'My Schedule', href: '/teacher/timetable', icon: Clock },
+      { name: 'Assignments & LMS', href: '/teacher/assignments', icon: BookOpen },
+      { name: 'Grade Assessments', href: '/teacher/marks', icon: Award },
       { name: 'Apply Leaves', href: '/teacher/leaves', icon: Clock },
-      { name: 'Upload Marks', href: '/teacher/attendance', icon: Award },
+      { name: 'Notice Board', href: '/teacher/notices', icon: Bell },
     ],
     student: [
       { name: 'My Profile', href: '/student', icon: LayoutDashboard },
+      { name: 'My Timetable', href: '/student/timetable', icon: Clock },
+      { name: 'Assignments & Homework', href: '/student/assignments', icon: BookOpen },
       { name: 'Fees & Invoices', href: '/student/fees', icon: CreditCard },
       { name: 'Exams & Progress', href: '/student/progress', icon: Award },
+      { name: 'Notice Board', href: '/student/notices', icon: Bell },
       { name: 'Bus Tracking', href: '/student/bus', icon: Bus },
     ],
     owner: [
       { name: 'Executive Overview', href: '/owner', icon: BarChart3 },
       { name: 'Fee Ledger', href: '/owner/fees', icon: CreditCard },
-      { name: 'All Students', href: '/admin/students', icon: GraduationCap },
-      { name: 'All Teachers', href: '/admin/teachers', icon: Users },
+      { name: 'All Students', href: '/owner/students', icon: GraduationCap },
+      { name: 'All Teachers', href: '/owner/teachers', icon: Users },
+      { name: 'Staff Payroll', href: '/owner/salaries', icon: DollarSign },
+    ],
+    parent: [
+      { name: 'Parent Dashboard', href: '/parent', icon: LayoutDashboard },
+      { name: 'Child Attendance', href: '/parent/attendance', icon: CalendarCheck },
+      { name: 'Class Timetable', href: '/parent/timetable', icon: Clock },
+      { name: 'Homework & LMS', href: '/parent/assignments', icon: BookOpen },
+      { name: 'Report Cards', href: '/parent/exams', icon: Award },
+      { name: 'Fee Invoices', href: '/parent/fees', icon: CreditCard },
+      { name: 'School Notices', href: '/parent/notices', icon: Bell },
     ],
   };
 
@@ -103,18 +124,26 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     teacher: [
       { name: 'Home', href: '/teacher', icon: LayoutDashboard },
       { name: 'Roll Call', href: '/teacher/attendance', icon: CalendarCheck },
-      { name: 'Leaves', href: '/teacher/leaves', icon: Clock },
+      { name: 'Schedule', href: '/teacher/timetable', icon: Clock },
+      { name: 'Homework', href: '/teacher/assignments', icon: BookOpen },
     ],
     student: [
       { name: 'Profile', href: '/student', icon: LayoutDashboard },
+      { name: 'Timetable', href: '/student/timetable', icon: Clock },
+      { name: 'Homework', href: '/student/assignments', icon: BookOpen },
       { name: 'Fees', href: '/student/fees', icon: CreditCard },
-      { name: 'Marks', href: '/student/progress', icon: Award },
-      { name: 'Bus', href: '/student/bus', icon: Bus },
     ],
     owner: [
       { name: 'Overview', href: '/owner', icon: BarChart3 },
       { name: 'Fee Ledger', href: '/owner/fees', icon: CreditCard },
-      { name: 'Students', href: '/admin/students', icon: GraduationCap },
+      { name: 'Students', href: '/owner/students', icon: GraduationCap },
+      { name: 'Teachers', href: '/owner/teachers', icon: Users },
+    ],
+    parent: [
+      { name: 'Home', href: '/parent', icon: LayoutDashboard },
+      { name: 'Attendance', href: '/parent/attendance', icon: CalendarCheck },
+      { name: 'Homework', href: '/parent/assignments', icon: BookOpen },
+      { name: 'Fees', href: '/parent/fees', icon: CreditCard },
     ],
   }[role] || [];
 
@@ -125,13 +154,15 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     teacher: 'from-emerald-600 via-teal-600 to-teal-800',
     student: 'from-violet-600 via-purple-600 to-purple-800',
     owner: 'from-amber-600 via-orange-600 to-orange-800',
+    parent: 'from-cyan-600 via-sky-600 to-sky-800',
   };
 
   const roleBadgeColors = {
-    admin: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    teacher: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    student: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    owner: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    admin: 'bg-blue-50 text-blue-700 border-blue-200',
+    teacher: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    student: 'bg-violet-50 text-violet-700 border-violet-200',
+    owner: 'bg-amber-50 text-amber-700 border-amber-200',
+    parent: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   };
 
   return (

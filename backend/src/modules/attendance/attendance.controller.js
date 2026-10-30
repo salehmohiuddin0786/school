@@ -7,12 +7,17 @@ import {
   applyStaffLeaveRequest,
   reviewStaffLeaveRequest,
   listLeaveRequests,
+  getTeacherSelfAttendanceSummary,
+  recordPeriodAttendance,
+  getPeriodAttendance,
 } from './attendance.service.js';
+import { verifyTeacherAttendanceAuthorization } from '../timetable/substitution.service.js';
 import {
   recordDailyAttendanceSchema,
   updateSingleAttendanceSchema,
   applyStaffLeaveSchema,
   reviewStaffLeaveSchema,
+  recordPeriodAttendanceSchema,
 } from './attendance.schema.js';
 import { sendSuccess, sendCreated, sendPaginated, sendError } from '../../utils/response.js';
 import { prisma } from '../../db/prisma.js';
@@ -20,8 +25,47 @@ import { prisma } from '../../db/prisma.js';
 export async function submitDailyAttendance(req, res, next) {
   try {
     const validated = recordDailyAttendanceSchema.parse(req.body);
+
+    // Permitted date validation: cannot mark future attendance
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (validated.date > todayStr) {
+      return sendError(res, 'Attendance cannot be marked for future dates.', 400);
+    }
+
+    // Role-based authorization: Class teacher or authorized substitute teacher
+    if (
+      req.roles.includes('TEACHER') &&
+      !req.roles.includes('SCHOOL_ADMIN') &&
+      !req.roles.includes('PRINCIPAL') &&
+      !req.user?.isSuperAdmin
+    ) {
+      const isAuthorized = await verifyTeacherAttendanceAuthorization(
+        req.tenantId,
+        req.user.id,
+        validated.sectionId,
+        validated.date
+      );
+
+      if (!isAuthorized) {
+        return sendError(
+          res,
+          'Access denied. Only the assigned class teacher or authorized substitute teacher may mark attendance for this section.',
+          403
+        );
+      }
+    }
+
     const results = await recordSectionAttendance(req.tenantId, validated, req.user.id, req);
     return sendSuccess(res, results, `Attendance recorded for ${results.length} students`);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getMyTeacherAttendance(req, res, next) {
+  try {
+    const summary = await getTeacherSelfAttendanceSummary(req.tenantId, req.user.id);
+    return sendSuccess(res, summary, 'Teacher personal attendance summary retrieved');
   } catch (error) {
     next(error);
   }
@@ -119,6 +163,32 @@ export async function getAllLeaves(req, res, next) {
     const { status, page = 1, limit = 20 } = req.query;
     const { leaves, total } = await listLeaveRequests(req.tenantId, { status, page, limit });
     return sendPaginated(res, leaves, total, page, limit, 'Leave requests retrieved');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function submitPeriodAttendance(req, res, next) {
+  try {
+    const validated = recordPeriodAttendanceSchema.parse(req.body);
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (validated.date > todayStr) {
+      return sendError(res, 'Period attendance cannot be marked for future dates.', 400);
+    }
+
+    const result = await recordPeriodAttendance(req.tenantId, validated, req.user?.id, req);
+    return sendSuccess(res, result, `Period attendance recorded for ${result.totalMarked} students`);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getPeriodAttendanceReport(req, res, next) {
+  try {
+    const { timetableEntryId, date } = req.params;
+    const report = await getPeriodAttendance(req.tenantId, timetableEntryId, date);
+    return sendSuccess(res, report, 'Period attendance retrieved');
   } catch (error) {
     next(error);
   }

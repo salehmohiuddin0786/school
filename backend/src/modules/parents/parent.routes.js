@@ -5,6 +5,7 @@ import {
   addParent,
   linkChild,
   getMyChildren,
+  getChildDashboard,
 } from './parent.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { tenantScope, requireTenant } from '../../middleware/tenantScope.js';
@@ -14,8 +15,9 @@ const router = Router();
 
 router.use(authenticate, tenantScope, requireTenant);
 
-// Authenticated Parent fetching their own verified linked children
+// Authenticated Parent fetching their own verified linked children and child overviews
 router.get('/my-children', requireRole('PARENT'), getMyChildren);
+router.get('/my-children/:studentId/overview', requireRole('PARENT'), getChildDashboard);
 
 // Staff directory routes
 router.get('/', requirePermission('students.read'), getAllParents);

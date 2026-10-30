@@ -20,6 +20,11 @@ import timetableRoutes from './modules/timetable/timetable.routes.js';
 import attendanceRoutes from './modules/attendance/attendance.routes.js';
 import examsRoutes from './modules/exams/exams.routes.js';
 import assignmentsRoutes from './modules/assignments/assignments.routes.js';
+import noticesRoutes from './modules/notices/notices.routes.js';
+import feesRoutes from './modules/fees/fees.routes.js';
+import ownerRoutes from './modules/owner/owner.routes.js';
+import notificationRoutes from './modules/notifications/notification.routes.js';
+import operationsRoutes from './modules/operations/operations.routes.js';
 
 export function createApp() {
   const app = express();
@@ -85,6 +90,11 @@ export function createApp() {
   apiV1.use('/attendance', attendanceRoutes);
   apiV1.use('/exams', examsRoutes);
   apiV1.use('/assignments', assignmentsRoutes);
+  apiV1.use('/notices', noticesRoutes);
+  apiV1.use('/fees', feesRoutes);
+  apiV1.use('/owner', ownerRoutes);
+  apiV1.use('/notifications', notificationRoutes);
+  apiV1.use('/operations', operationsRoutes);
 
   app.use('/api/v1', apiV1);
 

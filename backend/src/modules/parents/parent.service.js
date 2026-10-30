@@ -249,3 +249,129 @@ export async function getLinkedChildrenForParentUser(tenantId, userId) {
     student: l.student,
   }));
 }
+
+/**
+ * Validates parent relationship and retrieves complete dashboard data for a linked child.
+ */
+export async function getChildDashboardOverview(tenantId, parentUserId, studentId) {
+  const parentProfile = await prisma.parentProfile.findUnique({
+    where: { userId: parentUserId },
+  });
+  if (!parentProfile) {
+    const err = new Error('Parent profile not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const link = await prisma.studentParent.findFirst({
+    where: {
+      tenantId,
+      parentProfileId: parentProfile.id,
+      studentId,
+    },
+    include: {
+      student: {
+        include: {
+          user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+          campus: { select: { name: true } },
+          enrollments: {
+            where: { status: 'ACTIVE' },
+            take: 1,
+            include: {
+              section: {
+                include: { course: { select: { name: true } } },
+              },
+              academicYear: { select: { name: true, isCurrent: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!link) {
+    const err = new Error('Access denied. You can only view records of your verified children.');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const sectionId = link.student.enrollments[0]?.sectionId;
+
+  // 1. Attendance Summary
+  const attendanceRecords = await prisma.studentAttendance.findMany({
+    where: { tenantId, studentId },
+    orderBy: { date: 'desc' },
+  });
+
+  const totalDays = attendanceRecords.length;
+  const presentDays = attendanceRecords.filter((r) => r.status === 'PRESENT').length;
+  const lateDays = attendanceRecords.filter((r) => r.status === 'LATE').length;
+  const absentDays = attendanceRecords.filter((r) => r.status === 'ABSENT').length;
+  const attendancePercentage = totalDays > 0 ? Number((((presentDays + lateDays) / totalDays) * 100).toFixed(1)) : 100.0;
+
+  // 2. Fees & Invoices
+  const invoices = await prisma.invoice.findMany({
+    where: { tenantId, studentId },
+    orderBy: { issueDate: 'desc' },
+    include: { lines: true, payments: true },
+  });
+
+  let totalBilled = 0;
+  let totalPaid = 0;
+  invoices.forEach((inv) => {
+    totalBilled += Number(inv.totalAmount);
+    totalPaid += Number(inv.paidAmount);
+  });
+  const pendingFees = totalBilled - totalPaid;
+
+  // 3. Recent Report Cards
+  const reportCards = await prisma.reportCard.findMany({
+    where: { tenantId, studentId },
+    orderBy: { publishedAt: 'desc' },
+    include: {
+      exam: { select: { name: true, examType: true } },
+    },
+  });
+
+  // 4. Upcoming Assignments
+  const assignments = sectionId
+    ? await prisma.assignment.findMany({
+        where: {
+          tenantId,
+          classSubject: { sectionId },
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 5,
+        include: {
+          classSubject: {
+            include: { subject: { select: { name: true, code: true } } },
+          },
+          submissions: {
+            where: { studentId },
+            select: { id: true, status: true, marksAwarded: true },
+          },
+        },
+      })
+    : [];
+
+  return {
+    student: link.student,
+    relationship: link.relationship,
+    attendance: {
+      totalDays,
+      presentDays,
+      lateDays,
+      absentDays,
+      attendancePercentage,
+      recentRecords: attendanceRecords.slice(0, 10),
+    },
+    fees: {
+      totalBilled,
+      totalPaid,
+      pendingFees,
+      invoices,
+    },
+    reportCards,
+    assignments,
+  };
+}

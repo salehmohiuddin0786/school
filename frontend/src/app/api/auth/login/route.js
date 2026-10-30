@@ -14,65 +14,120 @@ export async function POST(request) {
       );
     }
 
-    const user = await queryOne(
-      'SELECT id, email, role, password_hash, theme FROM users WHERE email = ?',
-      [email.trim()]
-    );
+    // 1. First check canonical multi-tenant schoolnext_erp database
+    let user = null;
+    let mappedRole = null;
+    let profile = null;
 
-    if (!user) {
-      return NextResponse.json(
-        { status: 'error', message: 'Invalid email or password!' },
-        { status: 401 }
+    try {
+      const erpUser = await queryOne(
+        `SELECT u.id, u.tenantId, u.email, u.passwordHash, u.firstName, u.lastName, r.code as roleCode 
+         FROM schoolnext_erp.user u 
+         LEFT JOIN schoolnext_erp.userrole ur ON u.id = ur.userId 
+         LEFT JOIN schoolnext_erp.role r ON ur.roleId = r.id 
+         WHERE u.email = ?`,
+        [email.trim().toLowerCase()]
       );
+
+      if (erpUser) {
+        const isValid = await verifyPassword(password, erpUser.passwordHash);
+        if (isValid) {
+          const roleCode = erpUser.roleCode || 'STUDENT';
+          const ROLE_PORTAL_MAP = {
+            OWNER: 'owner',
+            SCHOOL_ADMIN: 'admin',
+            PRINCIPAL: 'admin',
+            TEACHER: 'teacher',
+            STUDENT: 'student',
+            PARENT: 'parent',
+          };
+
+          mappedRole = ROLE_PORTAL_MAP[roleCode];
+          if (!mappedRole) {
+            return NextResponse.json(
+              { status: 'error', message: `Access denied: Role '${roleCode}' does not have a designated web portal configured.` },
+              { status: 403 }
+            );
+          }
+
+          profile = {
+            id: erpUser.id,
+            tenantId: erpUser.tenantId,
+            email: erpUser.email,
+            role: mappedRole,
+            name: `${erpUser.firstName || ''} ${erpUser.lastName || ''}`.trim() || erpUser.email,
+            image: '1701517055user.png',
+          };
+          user = erpUser;
+        }
+      }
+    } catch (e) {
+      console.warn('schoolnext_erp lookup skipped:', e.message);
     }
 
-    const isValid = await verifyPassword(password, user.password_hash);
-    if (!isValid) {
-      return NextResponse.json(
-        { status: 'error', message: 'Invalid email or password!' },
-        { status: 401 }
+    // 2. Fallback to legacy single-tenant users table if not authenticated above
+    if (!profile) {
+      const legacyUser = await queryOne(
+        'SELECT id, email, role, password_hash, theme FROM users WHERE email = ?',
+        [email.trim()]
       );
-    }
 
-    // Fetch user profile details based on role
-    let profile = { id: user.id, email: user.email, role: user.role };
+      if (!legacyUser) {
+        return NextResponse.json(
+          { status: 'error', message: 'Invalid email or password!' },
+          { status: 401 }
+        );
+      }
 
-    if (user.role === 'admin') {
-      const admin = await queryOne('SELECT fname, lname, image FROM admins WHERE id = ?', [user.id]);
-      if (admin) profile.name = `${admin.fname} ${admin.lname}`.trim();
-      profile.image = admin?.image || '1701517055user.png';
-    } else if (user.role === 'teacher') {
-      const teacher = await queryOne('SELECT fname, lname, image, subject, class, section FROM teachers WHERE id = ?', [user.id]);
-      if (teacher) {
-        profile.name = `${teacher.fname} ${teacher.lname}`.trim();
-        profile.subject = teacher.subject;
-        profile.class = teacher.class;
-        profile.section = teacher.section;
+      const isValid = await verifyPassword(password, legacyUser.password_hash);
+      if (!isValid) {
+        return NextResponse.json(
+          { status: 'error', message: 'Invalid email or password!' },
+          { status: 401 }
+        );
       }
-      profile.image = teacher?.image || '1701517055user.png';
-    } else if (user.role === 'student') {
-      const student = await queryOne('SELECT fname, lname, image, class, section FROM students WHERE id = ?', [user.id]);
-      if (student) {
-        profile.name = `${student.fname} ${student.lname}`.trim();
-        profile.class = student.class;
-        profile.section = student.section;
+
+      mappedRole = legacyUser.role;
+      profile = { id: legacyUser.id, email: legacyUser.email, role: legacyUser.role };
+
+      if (legacyUser.role === 'admin') {
+        const admin = await queryOne('SELECT fname, lname, image FROM admins WHERE id = ?', [legacyUser.id]);
+        if (admin) profile.name = `${admin.fname} ${admin.lname}`.trim();
+        profile.image = admin?.image || '1701517055user.png';
+      } else if (legacyUser.role === 'teacher') {
+        const teacher = await queryOne('SELECT fname, lname, image, subject, class, section FROM teachers WHERE id = ?', [legacyUser.id]);
+        if (teacher) {
+          profile.name = `${teacher.fname} ${teacher.lname}`.trim();
+          profile.subject = teacher.subject;
+          profile.class = teacher.class;
+          profile.section = teacher.section;
+        }
+        profile.image = teacher?.image || '1701517055user.png';
+      } else if (legacyUser.role === 'student') {
+        const student = await queryOne('SELECT fname, lname, image, class, section FROM students WHERE id = ?', [legacyUser.id]);
+        if (student) {
+          profile.name = `${student.fname} ${student.lname}`.trim();
+          profile.class = student.class;
+          profile.section = student.section;
+        }
+        profile.image = student?.image || '1701517055user.png';
+      } else if (legacyUser.role === 'owner') {
+        profile.name = 'School Executive / Owner';
+        profile.image = '1701517055user.png';
       }
-      profile.image = student?.image || '1701517055user.png';
-    } else if (user.role === 'owner') {
-      profile.name = 'School Executive / Owner';
-      profile.image = '1701517055user.png';
     }
 
     const token = createToken({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: profile.name || user.email,
+      id: profile.id,
+      tenantId: profile.tenantId || null,
+      email: profile.email,
+      role: profile.role,
+      name: profile.name || profile.email,
     });
 
     const response = NextResponse.json({
       status: 'success',
-      role: user.role,
+      role: profile.role,
       user: profile,
     });
 

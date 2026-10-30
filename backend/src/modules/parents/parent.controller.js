@@ -4,6 +4,7 @@ import {
   createParent,
   linkStudentToParent,
   getLinkedChildrenForParentUser,
+  getChildDashboardOverview,
 } from './parent.service.js';
 import {
   createParentSchema,
@@ -58,6 +59,16 @@ export async function getMyChildren(req, res, next) {
   try {
     const children = await getLinkedChildrenForParentUser(req.tenantId, req.user.id);
     return sendSuccess(res, children, 'Linked children retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getChildDashboard(req, res, next) {
+  try {
+    const { studentId } = req.params;
+    const overview = await getChildDashboardOverview(req.tenantId, req.user.id, studentId);
+    return sendSuccess(res, overview, 'Child dashboard overview retrieved');
   } catch (error) {
     next(error);
   }

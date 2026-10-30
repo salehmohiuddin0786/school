@@ -7,6 +7,7 @@ import {
   getExamSubjectMarksSheet,
   calculateAndPublishResults,
   getStudentReportCard,
+  generateComprehensiveReportCardDocument,
   createGradeScale,
   listGradeScales,
 } from './exams.service.js';
@@ -132,6 +133,43 @@ export async function getReportCardController(req, res, next) {
 
     const reportCard = await getStudentReportCard(req.tenantId, studentId, examId);
     return sendSuccess(res, reportCard, 'Report card retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getOfficialReportCardController(req, res, next) {
+  try {
+    const { studentId, examId } = req.params;
+
+    // Student self-check
+    if (req.roles.includes('STUDENT') && !req.roles.includes('SCHOOL_ADMIN') && !req.roles.includes('PRINCIPAL') && !req.user.isSuperAdmin) {
+      const selfStudent = await prisma.student.findUnique({ where: { userId: req.user.id } });
+      if (!selfStudent || selfStudent.id !== studentId) {
+        return sendError(res, 'Access denied. You can only view your own report card.', 403);
+      }
+    }
+
+    // Parent linked-child check
+    if (req.roles.includes('PARENT') && !req.roles.includes('SCHOOL_ADMIN') && !req.roles.includes('PRINCIPAL') && !req.user.isSuperAdmin) {
+      const parentProfile = await prisma.parentProfile.findUnique({ where: { userId: req.user.id } });
+      if (!parentProfile) {
+        return sendError(res, 'Parent profile not found.', 403);
+      }
+      const linked = await prisma.studentParent.findFirst({
+        where: {
+          tenantId: req.tenantId,
+          parentProfileId: parentProfile.id,
+          studentId,
+        },
+      });
+      if (!linked) {
+        return sendError(res, 'Access denied. You can only view report cards of your verified children.', 403);
+      }
+    }
+
+    const officialDoc = await generateComprehensiveReportCardDocument(req.tenantId, studentId, examId);
+    return sendSuccess(res, officialDoc, 'Official report card document generated successfully');
   } catch (error) {
     next(error);
   }

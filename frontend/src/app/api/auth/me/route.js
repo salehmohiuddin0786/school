@@ -42,7 +42,10 @@ export async function GET() {
         profile.address = student.address;
       }
     } else if (session.role === 'owner') {
-      profile.name = 'School Executive / Owner';
+      profile.name = session.name || 'School Executive / Owner';
+      profile.image = '1701517055user.png';
+    } else if (session.role === 'parent') {
+      profile.name = session.name || 'Parent / Guardian';
       profile.image = '1701517055user.png';
     }
 

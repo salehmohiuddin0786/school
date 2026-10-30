@@ -30,3 +30,17 @@ export const reviewStaffLeaveSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
   approvalRemarks: z.string().optional(),
 });
+
+export const recordPeriodAttendanceSchema = z.object({
+  timetableEntryId: z.string().min(1, 'Timetable entry ID is required'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be formatted as YYYY-MM-DD'),
+  records: z
+    .array(
+      z.object({
+        studentId: z.string().min(1, 'Student ID is required'),
+        status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY', 'EXCUSED']),
+        remarks: z.string().optional().nullable(),
+      })
+    )
+    .min(1, 'At least one student record is required'),
+});

@@ -290,6 +290,15 @@ export async function seedDatabase() {
         'students.read', 'fees.read', 'fees.collect', 'fees.manage', 'expenses.manage', 'reports.export',
       ],
     },
+    {
+      code: 'OWNER',
+      name: 'School Executive / Owner',
+      description: 'Executive financial oversight, overall student and teacher analytics',
+      permissions: [
+        'students.read', 'attendance.read', 'exams.read',
+        'fees.read', 'fees.manage', 'expenses.manage', 'reports.export', 'audit.read',
+      ],
+    },
   ];
 
   const seededTenantRoles = {};
@@ -702,6 +711,53 @@ export async function seedDatabase() {
     lastName: 'Nair',
     roleCode: 'ACCOUNTANT',
     phone: '+919876500007',
+  });
+
+  // 7) School Executive / Owner: Vikramaditya Birla
+  await upsertTenantUser({
+    email: 'owner@greenwood.edu',
+    password: process.env.SEED_TENANT_ADMIN_PASSWORD || 'Admin@Greenwood2026!',
+    firstName: 'Vikramaditya',
+    lastName: 'Birla',
+    roleCode: 'OWNER',
+    phone: '+919876500008',
+  });
+
+  // Also seed quick-fill accounts for dev testing
+  await upsertTenantUser({
+    email: 'owner@gmail.com',
+    password: '123',
+    firstName: 'Executive',
+    lastName: 'Owner',
+    roleCode: 'OWNER',
+    phone: '+919876500009',
+  });
+
+  await upsertTenantUser({
+    email: 'admin@gmail.com',
+    password: '123',
+    firstName: 'Demo',
+    lastName: 'Admin',
+    roleCode: 'SCHOOL_ADMIN',
+    phone: '+919876500010',
+  });
+
+  await upsertTenantUser({
+    email: 'teacher@gmail.com',
+    password: '123',
+    firstName: 'Demo',
+    lastName: 'Teacher',
+    roleCode: 'TEACHER',
+    phone: '+919876500011',
+  });
+
+  await upsertTenantUser({
+    email: 'student@gmail.com',
+    password: '123',
+    firstName: 'Demo',
+    lastName: 'Student',
+    roleCode: 'STUDENT',
+    phone: '+919876500012',
   });
 
   // -------------------------------------------------------------

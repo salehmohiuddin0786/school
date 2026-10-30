@@ -8,6 +8,7 @@ import {
   getMarksSheetController,
   publishResultsController,
   getReportCardController,
+  getOfficialReportCardController,
   createGradeScaleController,
   listGradeScalesController,
 } from './exams.controller.js';
@@ -38,5 +39,6 @@ router.post('/subjects/:examSubjectId/marks', requirePermission('marks.enter'), 
 // Results publishing & report cards
 router.post('/:examId/publish', requirePermission('results.publish'), publishResultsController);
 router.get('/:examId/report-cards/:studentId', requirePermission('exams.read'), getReportCardController);
+router.get('/:examId/report-cards/:studentId/official', requirePermission('exams.read'), getOfficialReportCardController);
 
 export default router;

@@ -18,20 +18,20 @@ function decodeJwtPayload(token) {
   }
 }
 
-export function middleware(request) {
+export function proxy(request) {
   const token = request.cookies.get('sms_auth_token')?.value;
   const { pathname } = request.nextUrl;
 
   const payload = token ? decodeJwtPayload(token) : null;
   const isTokenValid = !!(payload && payload.exp && payload.exp * 1000 > Date.now());
 
-  // If user is already logged in and visits /login, redirect to their role portal
+  // If user is already logged in and visits /login, redirect to their designated role portal
   if (pathname === '/login' && isTokenValid) {
     const target = payload.role ? `/${payload.role}` : '/admin';
     return NextResponse.redirect(new URL(target, request.url));
   }
 
-  const protectedPrefixes = ['/admin', '/teacher', '/student', '/owner'];
+  const protectedPrefixes = ['/admin', '/teacher', '/student', '/owner', '/parent'];
   const isProtected = protectedPrefixes.some(prefix => pathname.startsWith(prefix));
 
   // If unauthenticated, redirect to login
@@ -46,19 +46,22 @@ export function middleware(request) {
       return response;
     }
 
-    // Role-based authorization enforcement
+    // Role-based authorization enforcement — STRICT ISOLATION, NO CROSSOVER
     const userRole = payload.role;
-    if (pathname.startsWith('/admin') && userRole !== 'admin' && userRole !== 'owner') {
-      return NextResponse.redirect(new URL(`/${userRole || 'student'}`, request.url));
+    if (pathname.startsWith('/admin') && userRole !== 'admin') {
+      return NextResponse.redirect(new URL(`/${userRole || 'login'}`, request.url));
     }
-    if (pathname.startsWith('/owner') && userRole !== 'owner' && userRole !== 'admin') {
-      return NextResponse.redirect(new URL(`/${userRole || 'student'}`, request.url));
+    if (pathname.startsWith('/owner') && userRole !== 'owner') {
+      return NextResponse.redirect(new URL(`/${userRole || 'login'}`, request.url));
     }
-    if (pathname.startsWith('/teacher') && userRole !== 'teacher' && userRole !== 'admin') {
-      return NextResponse.redirect(new URL(`/${userRole || 'student'}`, request.url));
+    if (pathname.startsWith('/teacher') && userRole !== 'teacher') {
+      return NextResponse.redirect(new URL(`/${userRole || 'login'}`, request.url));
     }
-    if (pathname.startsWith('/student') && userRole !== 'student' && userRole !== 'admin') {
-      return NextResponse.redirect(new URL(`/${userRole || 'teacher'}`, request.url));
+    if (pathname.startsWith('/student') && userRole !== 'student') {
+      return NextResponse.redirect(new URL(`/${userRole || 'login'}`, request.url));
+    }
+    if (pathname.startsWith('/parent') && userRole !== 'parent') {
+      return NextResponse.redirect(new URL(`/${userRole || 'login'}`, request.url));
     }
   }
 
@@ -66,5 +69,5 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/teacher/:path*', '/student/:path*', '/owner/:path*', '/login'],
+  matcher: ['/admin/:path*', '/teacher/:path*', '/student/:path*', '/owner/:path*', '/parent/:path*', '/login'],
 };

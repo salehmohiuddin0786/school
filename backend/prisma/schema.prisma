@@ -160,6 +160,17 @@ enum PayrollStatus {
   DISBURSED
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum DiscountApplicability {
+  TUITION_ONLY
+  TRANSPORT_ONLY
+  ALL_HEADS
+}
+
 // -------------------------------------------------------------
 // IDENTITY & SAAS
 // -------------------------------------------------------------
@@ -204,6 +215,7 @@ model Tenant {
   classSubjects    ClassSubject[]
   teacherAssignments TeacherAssignment[]
   timetableEntries TimetableEntry[]
+  teacherSubstitutions TeacherSubstitution[]
   enrollments      Enrollment[]
 
   students         Student[]
@@ -216,6 +228,7 @@ model Tenant {
   leaveRequests    LeaveRequest[]
 
   studentAttendances StudentAttendance[]
+  periodAttendances  PeriodAttendance[]
   exams            Exam[]
   examSubjects     ExamSubject[]
   assessments      Assessment[]
@@ -229,15 +242,18 @@ model Tenant {
 
   feeCategories    FeeCategory[]
   feeStructures    FeeStructure[]
+  feeDiscountRules FeeDiscountRule[]
   studentFees      StudentFee[]
   invoices         Invoice[]
   invoiceLines     InvoiceLine[]
   payments         Payment[]
+  paymentReversals PaymentReversal[]
   refunds          Refund[]
   expenses         Expense[]
 
   notices          Notice[]
   notifications    Notification[]
+  outboundNotifications OutboundNotification[]
   libraryBooks     LibraryBook[]
   bookIssues       BookIssue[]
   transportRoutes  TransportRoute[]
@@ -696,11 +712,38 @@ model TimetableEntry {
   subject          Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher          TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
   classRoom        ClassRoom?     @relation(fields: [classRoomId], references: [id], onDelete: SetNull)
+  substitutions    TeacherSubstitution[]
+  periodAttendances PeriodAttendance[]
 
   @@index([tenantId])
   @@index([sectionId, dayOfWeek])
   @@index([teacherProfileId, dayOfWeek])
   @@index([classRoomId, dayOfWeek])
+}
+
+model TeacherSubstitution {
+  id                   String         @id @default(uuid())
+  tenantId             String
+  timetableEntryId     String
+  originalTeacherId    String
+  substituteTeacherId  String
+  date                 DateTime       @db.Date
+  status               String         @default("ASSIGNED") // ASSIGNED, COMPLETED, CANCELLED
+  remarks              String?
+  assignedById         String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  timetableEntry       TimetableEntry @relation(fields: [timetableEntryId], references: [id], onDelete: Cascade)
+  originalTeacher      TeacherProfile @relation("OriginalTeacherSubstitutions", fields: [originalTeacherId], references: [id], onDelete: Cascade)
+  substituteTeacher    TeacherProfile @relation("SubstituteTeacherAssignments", fields: [substituteTeacherId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, timetableEntryId, date])
+  @@index([tenantId])
+  @@index([timetableEntryId])
+  @@index([originalTeacherId, date])
+  @@index([substituteTeacherId, date])
 }
 
 model Enrollment {
@@ -756,6 +799,7 @@ model Student {
   studentParents   StudentParent[]
   enrollments      Enrollment[]
   attendances      StudentAttendance[]
+  periodAttendances PeriodAttendance[]
   markEntries      MarkEntry[]
   reportCards      ReportCard[]
   submissions      AssignmentSubmission[]
@@ -827,9 +871,12 @@ model TeacherProfile {
 
   teacherAssignments TeacherAssignment[]
   timetableEntries   TimetableEntry[]
+  originalSubstitutions TeacherSubstitution[] @relation("OriginalTeacherSubstitutions")
+  substituteAssignments TeacherSubstitution[] @relation("SubstituteTeacherAssignments")
   assignments        Assignment[]
   learningMaterials  LearningMaterial[]
   leaveRequests      LeaveRequest[]
+  staffAttendances   StaffAttendance[]
 
   @@unique([tenantId, employeeCode])
   @@index([tenantId])
@@ -866,23 +913,25 @@ model StaffProfile {
 }
 
 model StaffAttendance {
-  id             String           @id @default(uuid())
-  tenantId       String
-  staffProfileId String
-  date           DateTime         @db.Date
-  status         AttendanceStatus @default(PRESENT)
-  checkInTime    DateTime?
-  checkOutTime   DateTime?
-  remarks        String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id               String           @id @default(uuid())
+  tenantId         String
+  staffProfileId   String?
+  teacherProfileId String?
+  date             DateTime         @db.Date
+  status           AttendanceStatus @default(PRESENT)
+  checkInTime      DateTime?
+  checkOutTime     DateTime?
+  remarks          String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  staff          StaffProfile     @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff            StaffProfile?    @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+  teacher          TeacherProfile?  @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, staffProfileId, date])
   @@index([tenantId])
   @@index([staffProfileId])
+  @@index([teacherProfileId])
   @@index([date])
 }
 
@@ -958,6 +1007,27 @@ model StudentAttendance {
   @@index([studentId])
   @@index([sectionId])
   @@index([date])
+}
+
+model PeriodAttendance {
+  id               String           @id @default(uuid())
+  tenantId         String           @db.VarChar(36)
+  timetableEntryId String           @db.VarChar(36)
+  studentId        String           @db.VarChar(36)
+  date             DateTime         @db.Date
+  status           AttendanceStatus @default(PRESENT)
+  remarks          String?          @db.VarChar(255)
+  recordedById     String?          @db.VarChar(36)
+  createdAt        DateTime         @default(now())
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  timetableEntry   TimetableEntry   @relation(fields: [timetableEntryId], references: [id], onDelete: Cascade)
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, timetableEntryId, studentId, date])
+  @@index([tenantId, date])
+  @@index([timetableEntryId])
+  @@index([studentId])
 }
 
 model Exam {
@@ -1304,11 +1374,55 @@ model Payment {
   tenant               Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invoice              Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   refunds              Refund[]
+  reversal             PaymentReversal?
 
   @@unique([tenantId, transactionReference])
   @@index([tenantId])
   @@index([invoiceId])
   @@index([paymentStatus])
+}
+
+model PaymentReversal {
+  id                String   @id @default(uuid())
+  tenantId          String   @db.VarChar(100)
+  paymentId         String   @unique @db.VarChar(100)
+  reversalVoucherNo String   @db.VarChar(100)
+  reason            String   @db.Text
+  amount            Decimal  @db.Decimal(12, 2)
+  status            String   @default("APPROVED") @db.VarChar(50) // PENDING, APPROVED, REJECTED
+  requestedById     String   @db.VarChar(100)
+  approvedById      String?  @db.VarChar(100)
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment           Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, reversalVoucherNo])
+  @@index([tenantId])
+  @@index([paymentId])
+}
+
+model FeeDiscountRule {
+  id             String                @id @default(uuid())
+  tenantId       String                @db.VarChar(100)
+  name           String                @db.VarChar(150) // e.g. "Sibling Discount (2nd Child)", "Staff Ward Concession", "Merit Scholarship"
+  code           String                @db.VarChar(100)
+  description    String?               @db.Text
+  discountType   DiscountType          @default(PERCENTAGE)
+  value          Decimal               @db.Decimal(10, 2)
+  applicableOn   DiscountApplicability @default(TUITION_ONLY)
+  isAutomatic    Boolean               @default(false)
+  criteria       Json?                 // e.g. { "siblingOrder": 2 } or { "staffWard": true }
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 model Refund {
@@ -1392,6 +1506,62 @@ model Notification {
   @@index([tenantId])
   @@index([userId])
   @@index([isRead])
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+  PUSH
+  IN_APP
+}
+
+enum NotificationDeliveryStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum NotificationEventType {
+  STUDENT_ABSENT
+  FEE_DUE_REMINDER
+  FEE_PAYMENT_RECEIPT
+  EXAM_RESULT_PUBLISHED
+  GENERAL_ANNOUNCEMENT
+  BUS_DELAY_ALERT
+}
+
+model OutboundNotification {
+  id              String                     @id @default(uuid())
+  tenantId        String                     @db.VarChar(36)
+  eventType       NotificationEventType
+  channel         NotificationChannel        @default(WHATSAPP)
+  recipientPhone  String?                    @db.VarChar(50)
+  recipientEmail  String?                    @db.VarChar(191)
+  recipientUserId String?                    @db.VarChar(36)
+  recipientName   String?                    @db.VarChar(191)
+  templateCode    String?                    @db.VarChar(100)
+  title           String                     @db.VarChar(255)
+  messageBody     String                     @db.Text
+  payload         Json?
+  status          NotificationDeliveryStatus @default(QUEUED)
+  externalId      String?                    @db.VarChar(100)
+  errorReason     String?                    @db.Text
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([eventType])
+  @@index([channel])
+  @@index([recipientPhone])
 }
 
 model LibraryBook {
