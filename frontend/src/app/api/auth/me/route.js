@@ -12,34 +12,55 @@ export async function GET() {
     let profile = { ...session };
 
     if (session.role === 'admin') {
-      const admin = await queryOne('SELECT fname, lname, image, phone, address FROM admins WHERE id = ?', [session.id]);
-      if (admin) {
-        profile.name = `${admin.fname} ${admin.lname}`.trim();
-        profile.image = admin.image;
-        profile.phone = admin.phone;
-        profile.address = admin.address;
+      const u = await queryOne('SELECT firstName, lastName, phone, avatarUrl FROM user WHERE id = ?', [session.id]).catch(() => null);
+      if (u) {
+        profile.name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || session.name || 'Administrator';
+        profile.phone = u.phone || '';
+        profile.image = u.avatarUrl || '1701517055user.png';
+      } else {
+        const admin = await queryOne('SELECT fname, lname, image, phone, address FROM admins WHERE id = ?', [session.id]).catch(() => null);
+        if (admin) {
+          profile.name = `${admin.fname} ${admin.lname}`.trim();
+          profile.image = admin.image;
+          profile.phone = admin.phone;
+          profile.address = admin.address;
+        }
       }
     } else if (session.role === 'teacher') {
-      const teacher = await queryOne('SELECT fname, lname, image, subject, class, section, phone, address FROM teachers WHERE id = ?', [session.id]);
-      if (teacher) {
-        profile.name = `${teacher.fname} ${teacher.lname}`.trim();
-        profile.image = teacher.image;
-        profile.subject = teacher.subject;
-        profile.class = teacher.class;
-        profile.section = teacher.section;
-        profile.phone = teacher.phone;
-        profile.address = teacher.address;
+      const u = await queryOne('SELECT firstName, lastName, phone, avatarUrl FROM user WHERE id = ?', [session.id]).catch(() => null);
+      if (u) {
+        profile.name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || session.name || 'Teacher';
+        profile.phone = u.phone || '';
+        profile.image = u.avatarUrl || '1701517055user.png';
+      } else {
+        const teacher = await queryOne('SELECT fname, lname, image, subject, class, section, phone, address FROM teachers WHERE id = ?', [session.id]).catch(() => null);
+        if (teacher) {
+          profile.name = `${teacher.fname} ${teacher.lname}`.trim();
+          profile.image = teacher.image;
+          profile.subject = teacher.subject;
+          profile.class = teacher.class;
+          profile.section = teacher.section;
+          profile.phone = teacher.phone;
+          profile.address = teacher.address;
+        }
       }
     } else if (session.role === 'student') {
-      const student = await queryOne('SELECT fname, lname, image, class, section, father, phone, address FROM students WHERE id = ?', [session.id]);
-      if (student) {
-        profile.name = `${student.fname} ${student.lname}`.trim();
-        profile.image = student.image;
-        profile.class = student.class;
-        profile.section = student.section;
-        profile.father = student.father;
-        profile.phone = student.phone;
-        profile.address = student.address;
+      const u = await queryOne('SELECT firstName, lastName, phone, avatarUrl FROM user WHERE id = ?', [session.id]).catch(() => null);
+      if (u) {
+        profile.name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || session.name || 'Student';
+        profile.phone = u.phone || '';
+        profile.image = u.avatarUrl || '1701517055user.png';
+      } else {
+        const student = await queryOne('SELECT fname, lname, image, class, section, father, phone, address FROM students WHERE id = ?', [session.id]).catch(() => null);
+        if (student) {
+          profile.name = `${student.fname} ${student.lname}`.trim();
+          profile.image = student.image;
+          profile.class = student.class;
+          profile.section = student.section;
+          profile.father = student.father;
+          profile.phone = student.phone;
+          profile.address = student.address;
+        }
       }
     } else if (session.role === 'owner') {
       profile.name = session.name || 'School Executive / Owner';

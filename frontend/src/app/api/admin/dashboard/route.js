@@ -19,19 +19,20 @@ export async function GET() {
       recentNotices,
       feeStats,
     ] = await Promise.all([
-      queryOne('SELECT COUNT(*) as count FROM students'),
-      queryOne('SELECT COUNT(*) as count FROM teachers'),
-      queryOne('SELECT COUNT(*) as count FROM buses'),
-      queryOne('SELECT COUNT(DISTINCT class) as count FROM classes'),
-      queryOne("SELECT COUNT(*) as count FROM leaves WHERE status = 'pending'"),
-      query("SELECT attendence, COUNT(*) as count FROM attendence WHERE DATE(date) = CURDATE() GROUP BY attendence"),
-      query('SELECT s_no, title, body, importance, timestamp FROM notice ORDER BY s_no DESC LIMIT 4'),
-      queryOne('SELECT COALESCE(SUM(total), 0) as totalBilled, COALESCE(SUM(paid), 0) as totalCollected, COALESCE(SUM(balance), 0) as totalBalance FROM fee_record'),
+      queryOne('SELECT COUNT(*) as count FROM students').catch(() => queryOne('SELECT COUNT(*) as count FROM student').catch(() => ({ count: 0 }))),
+      queryOne('SELECT COUNT(*) as count FROM teachers').catch(() => queryOne('SELECT COUNT(*) as count FROM teacherprofile').catch(() => ({ count: 0 }))),
+      queryOne('SELECT COUNT(*) as count FROM buses').catch(() => queryOne('SELECT COUNT(*) as count FROM vehicle').catch(() => ({ count: 0 }))),
+      queryOne('SELECT COUNT(DISTINCT class) as count FROM classes').catch(() => queryOne('SELECT COUNT(DISTINCT name) as count FROM course').catch(() => ({ count: 0 }))),
+      queryOne("SELECT COUNT(*) as count FROM leaves WHERE status = 'pending'").catch(() => queryOne("SELECT COUNT(*) as count FROM leaverequest WHERE status = 'PENDING'").catch(() => ({ count: 0 }))),
+      query("SELECT attendence, COUNT(*) as count FROM attendence WHERE DATE(date) = CURDATE() GROUP BY attendence").catch(() => query("SELECT status as attendence, COUNT(*) as count FROM studentattendance WHERE DATE(date) = CURDATE() GROUP BY status").catch(() => [])),
+      query('SELECT s_no, title, body, importance, timestamp FROM notice ORDER BY s_no DESC LIMIT 4').catch(() => query('SELECT id as s_no, title, content as body, "normal" as importance, createdAt as timestamp FROM notice ORDER BY createdAt DESC LIMIT 4').catch(() => [])),
+      queryOne('SELECT COALESCE(SUM(total), 0) as totalBilled, COALESCE(SUM(paid), 0) as totalCollected, COALESCE(SUM(balance), 0) as totalBalance FROM fee_record').catch(() => queryOne('SELECT COALESCE(SUM(totalAmount), 0) as totalBilled, COALESCE(SUM(paidAmount), 0) as totalCollected, COALESCE(SUM(totalAmount - paidAmount), 0) as totalBalance FROM invoice').catch(() => ({ totalBilled: 0, totalCollected: 0, totalBalance: 0 }))),
     ]);
 
-    const presentCount = todayAttendance.find(a => a.attendence === '1' || a.attendence === 'present')?.count || 0;
-    const absentCount = todayAttendance.find(a => a.attendence === '0' || a.attendence === 'absent')?.count || 0;
-    const totalToday = todayAttendance.reduce((acc, curr) => acc + curr.count, 0) || (studentCount?.count || 1);
+    const attendanceList = Array.isArray(todayAttendance) ? todayAttendance : [];
+    const presentCount = attendanceList.find(a => a.attendence === '1' || a.attendence === 'present' || a.attendence === 'PRESENT')?.count || 0;
+    const absentCount = attendanceList.find(a => a.attendence === '0' || a.attendence === 'absent' || a.attendence === 'ABSENT')?.count || 0;
+    const totalToday = attendanceList.reduce((acc, curr) => acc + (curr.count || 0), 0) || (studentCount?.count || 1);
 
     // Mock realistic monthly attendance & fee trend for charts if few rows
     const monthlyTrend = [
