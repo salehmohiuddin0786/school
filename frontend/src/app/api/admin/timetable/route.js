@@ -7,8 +7,39 @@ function isTimeOverlapping(s1, e1, s2, e2) {
   return s1 < e2 && e1 > s2;
 }
 
+let tableChecked = false;
+async function ensureTimetableTable() {
+  if (tableChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS period_timetable (
+        id int NOT NULL AUTO_INCREMENT,
+        class varchar(50) NOT NULL,
+        section varchar(50) NOT NULL DEFAULT 'A',
+        weekday varchar(20) NOT NULL,
+        period_number int NOT NULL,
+        period_name varchar(50) DEFAULT NULL,
+        start_time varchar(20) NOT NULL,
+        end_time varchar(20) NOT NULL,
+        subject varchar(100) NOT NULL,
+        teacher_id varchar(40) DEFAULT NULL,
+        classroom varchar(50) DEFAULT NULL,
+        is_break tinyint(1) NOT NULL DEFAULT '0',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_slot (class, section, weekday, period_number)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    tableChecked = true;
+  } catch (err) {
+    console.warn('ensureTimetableTable warning:', err.message);
+  }
+}
+
 export async function GET(request) {
   try {
+    await ensureTimetableTable();
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'owner' && session.role !== 'teacher')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -61,17 +92,23 @@ export async function GET(request) {
 
     sql += ' ORDER BY FIELD(pt.weekday, "MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"), pt.period_number ASC';
 
-    const entries = await query(sql, params);
+    let entries = [];
+    try {
+      entries = await query(sql, params);
+    } catch (dbErr) {
+      console.warn('Timetable query fallback:', dbErr.message);
+    }
 
-    return NextResponse.json({ status: 'success', entries });
+    return NextResponse.json({ status: 'success', entries: entries || [] });
   } catch (error) {
     console.error('Timetable GET error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message, entries: [] }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
+    await ensureTimetableTable();
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'owner')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -210,6 +247,7 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
+    await ensureTimetableTable();
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'owner')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

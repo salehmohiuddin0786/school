@@ -2,8 +2,28 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 
+let tableChecked = false;
+async function ensureClassesTable() {
+  if (tableChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS classes (
+        s_no int NOT NULL AUTO_INCREMENT,
+        class varchar(50) NOT NULL,
+        section varchar(50) NOT NULL DEFAULT 'A',
+        fees int NOT NULL DEFAULT '0',
+        PRIMARY KEY (s_no)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    tableChecked = true;
+  } catch (err) {
+    console.warn('ensureClassesTable warning:', err.message);
+  }
+}
+
 export async function GET() {
   try {
+    await ensureClassesTable();
     let classes = [];
 
     // 1. Fetch from classes table if it exists
@@ -46,13 +66,16 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    await ensureClassesTable();
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'owner')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { className, section, fees } = body;
+    const className = (body.className || body.class || '').trim();
+    const section = (body.section || 'A').trim();
+    const fees = parseInt(body.fees, 10) || 0;
 
     if (!className) {
       return NextResponse.json({ error: 'Class name is required' }, { status: 400 });
@@ -60,10 +83,30 @@ export async function POST(request) {
 
     await query(
       'INSERT INTO classes (class, section, fees) VALUES (?, ?, ?)',
-      [className, section || 'A', parseInt(fees, 10) || 0]
+      [className, section, fees]
     );
 
     return NextResponse.json({ status: 'success', message: 'Class added successfully' });
+  } catch (error) {
+    console.error('Classes POST error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    await ensureClassesTable();
+    const session = await getSessionUser();
+    if (!session || (session.role !== 'admin' && session.role !== 'owner')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id') || searchParams.get('s_no');
+    if (!id) return NextResponse.json({ error: 'id parameter is required' }, { status: 400 });
+
+    await query('DELETE FROM classes WHERE s_no = ?', [id]);
+    return NextResponse.json({ status: 'success', message: 'Class deleted successfully' });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

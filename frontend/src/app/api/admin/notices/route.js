@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
+import crypto from 'crypto';
 
 export async function GET() {
   try {
     const notices = await query('SELECT * FROM notice ORDER BY s_no DESC');
-    return NextResponse.json({ status: 'success', notices });
+    return NextResponse.json({ status: 'success', notices: notices || [] });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message, notices: [] }, { status: 500 });
   }
 }
 
@@ -25,14 +26,32 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
+    const tenantRow = await queryOne('SELECT id FROM tenant LIMIT 1');
+    const validTenantId = session.tenantId || tenantRow?.id || 'a30ecf76-6525-407b-b180-bd9b681799f1';
+    const noticeId = 'not_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+
     await query(
-      `INSERT INTO notice (sender_id, editor_id, title, body, file, importance, role, class, timestamp) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [session.id, session.id, title, noticeBody, '', importance, role, className]
+      `INSERT INTO notice (
+        id, tenantId, title, content, body, sender_id, editor_id, file, importance, role, class, timestamp, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
+      [
+        noticeId,
+        validTenantId,
+        title,
+        noticeBody,
+        noticeBody,
+        session.id || 'admin',
+        session.id || 'admin',
+        '',
+        importance,
+        role,
+        className,
+      ]
     );
 
-    return NextResponse.json({ status: 'success', message: 'Notice posted successfully' });
+    return NextResponse.json({ status: 'success', message: 'Notice posted successfully', id: noticeId });
   } catch (error) {
+    console.error('Notice POST error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -51,7 +70,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Notice id is required' }, { status: 400 });
     }
 
-    await query('DELETE FROM notice WHERE s_no = ?', [id]);
+    await query('DELETE FROM notice WHERE s_no = ? OR id = ?', [id, id]);
     return NextResponse.json({ status: 'success', message: 'Notice deleted successfully' });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
