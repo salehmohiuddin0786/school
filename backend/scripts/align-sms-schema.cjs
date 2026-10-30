@@ -5,17 +5,17 @@ async function migrate() {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || '_sms',
+    database: process.env.DB_NAME || 'schoolnext_erp',
   });
 
-  console.log('Connected to _sms database for schema alignment.');
+  console.log('Connected to schoolnext_erp database for schema alignment.');
 
   // Helper to safely add column if not exists
   const addColumnIfNotExists = async (table, colDef) => {
     const colName = colDef.split(' ')[0].replace(/[`"]/g, '');
     const [cols] = await conn.execute(
       `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
-      [process.env.DB_NAME || '_sms', table, colName]
+      [process.env.DB_NAME || 'schoolnext_erp', table, colName]
     );
     if (cols.length === 0) {
       await conn.execute(`ALTER TABLE \`${table}\` ADD COLUMN ${colDef}`);

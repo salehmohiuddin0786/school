@@ -26,8 +26,8 @@ async function testEndpoint(path, cookie) {
 const mysql = require('mysql2/promise');
 
 async function testDb() {
-  const conn = await mysql.createConnection({ host: 'localhost', user: 'root', password: '', database: '_sms' });
-  console.log('Testing SQL joins in _sms:');
+  const conn = await mysql.createConnection({ host: 'localhost', user: 'root', password: '', database: process.env.DB_NAME || 'schoolnext_erp' });
+  console.log('Testing SQL joins in schoolnext_erp:');
 
   // 1. Teachers join
   const [tRows] = await conn.execute(`
