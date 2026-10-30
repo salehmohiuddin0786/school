@@ -35,70 +35,146 @@ export async function GET(request) {
       });
     }
 
-    let whereSql = ' WHERE 1=1';
-    const params = [];
+    const rawClass = className ? className.replace(/^Class\s+/i, '').trim() : '';
+    const rawSection = section ? section.replace(/^Section\s+/i, '').trim() : '';
 
-    if (className) {
-      whereSql += ' AND class = ?';
-      params.push(className);
-    }
-    if (section) {
-      whereSql += ' AND section = ?';
-      params.push(section);
-    }
-    if (academicYear) {
-      whereSql += ' AND (academic_year = ? OR academic_year IS NULL)';
-      params.push(academicYear);
-    }
-    if (search) {
-      whereSql += ' AND (fname LIKE ? OR lname LIKE ? OR id LIKE ? OR roll_no LIKE ? OR email LIKE ? OR phone LIKE ?)';
-      const s = `%${search}%`;
-      params.push(s, s, s, s, s, s);
+    let combinedStudents = [];
+
+    // 1. Query legacy `students` table
+    try {
+      let whereSql = ' WHERE 1=1';
+      const params = [];
+
+      if (className) {
+        whereSql += ' AND (class = ? OR class = ?)';
+        params.push(className, rawClass);
+      }
+      if (section) {
+        whereSql += ' AND (section = ? OR section = ?)';
+        params.push(section, rawSection);
+      }
+      if (academicYear) {
+        whereSql += ' AND (academic_year = ? OR academic_year IS NULL)';
+        params.push(academicYear);
+      }
+      if (search) {
+        whereSql += ' AND (fname LIKE ? OR lname LIKE ? OR id LIKE ? OR roll_no LIKE ? OR email LIKE ? OR phone LIKE ?)';
+        const s = `%${search}%`;
+        params.push(s, s, s, s, s, s);
+      }
+
+      const sql = `
+        SELECT 
+          s_no, 
+          id, 
+          id as admission_number,
+          roll_no,
+          academic_year,
+          fname, 
+          lname, 
+          father, 
+          gender, 
+          class, 
+          section, 
+          dob, 
+          image, 
+          phone, 
+          email, 
+          address, 
+          city, 
+          state,
+          bus_id,
+          CASE 
+            WHEN request = 'approved' OR request = '' OR request IS NULL THEN 'ACTIVE'
+            WHEN request = 'pending' THEN 'PENDING'
+            ELSE 'INACTIVE'
+          END as status
+        FROM students 
+        ${whereSql}
+        ORDER BY s_no DESC
+      `;
+      const legacyRows = await query(sql, params);
+      if (Array.isArray(legacyRows)) {
+        combinedStudents.push(...legacyRows);
+      }
+    } catch (e) {
+      console.warn('Legacy students query fallback:', e.message);
     }
 
-    // Get total count
-    const countResult = await query(`SELECT COUNT(*) as total FROM students ${whereSql}`, params);
-    const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    // 2. Query canonical multi-tenant `student` table (Prisma model)
+    try {
+      let erpWhere = ' WHERE 1=1';
+      const erpParams = [];
 
-    // Get paginated rows
-    const sql = `
-      SELECT 
-        s_no, 
-        id, 
-        id as admission_number,
-        roll_no,
-        academic_year,
-        fname, 
-        lname, 
-        father, 
-        gender, 
-        class, 
-        section, 
-        dob, 
-        image, 
-        phone, 
-        email, 
-        address, 
-        city, 
-        state,
-        bus_id,
-        CASE 
-          WHEN request = 'approved' OR request = '' OR request IS NULL THEN 'ACTIVE'
-          WHEN request = 'pending' THEN 'PENDING'
-          ELSE 'INACTIVE'
-        END as status
-      FROM students 
-      ${whereSql}
-      ORDER BY s_no DESC
-      LIMIT ? OFFSET ?
-    `;
+      if (className) {
+        erpWhere += ' AND (c.name = ? OR c.name = ? OR c.code = ?)';
+        erpParams.push(className, `Class ${rawClass}`, `CLS-${rawClass}`);
+      }
+      if (section) {
+        erpWhere += ' AND (sec.name = ? OR sec.name = ?)';
+        erpParams.push(section, `Section ${rawSection}`);
+      }
+      if (search) {
+        erpWhere += ' AND (u.firstName LIKE ? OR u.lastName LIKE ? OR s.admissionNumber LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)';
+        const s = `%${search}%`;
+        erpParams.push(s, s, s, s, s);
+      }
 
-    const students = await query(sql, [...params, limit, offset]);
+      const erpSql = `
+        SELECT 
+          s.id as s_no,
+          s.id,
+          s.admissionNumber as admission_number,
+          s.admissionNumber as roll_no,
+          '2025-2026' as academic_year,
+          u.firstName as fname,
+          u.lastName as lname,
+          '' as father,
+          s.gender,
+          COALESCE(c.name, ?) as class,
+          COALESCE(sec.name, ?) as section,
+          COALESCE(s.dateOfBirth, '') as dob,
+          COALESCE(u.avatarUrl, '1701517055user.png') as image,
+          COALESCE(u.phone, '') as phone,
+          u.email,
+          COALESCE(s.address, '') as address,
+          COALESCE(s.city, '') as city,
+          COALESCE(s.state, '') as state,
+          '' as bus_id,
+          'ACTIVE' as status
+        FROM student s
+        JOIN user u ON s.userId = u.id
+        LEFT JOIN enrollment e ON s.id = e.studentId AND e.status = 'ACTIVE'
+        LEFT JOIN section sec ON e.sectionId = sec.id
+        LEFT JOIN course c ON sec.courseId = c.id
+        ${erpWhere}
+        ORDER BY u.firstName ASC
+      `;
+
+      const erpRows = await query(erpSql, [className || 'Class 10', section || 'A', ...erpParams]);
+      if (Array.isArray(erpRows)) {
+        const existingIdentifiers = new Set(
+          combinedStudents.map(s => (s.email || s.admission_number || s.id || '').toLowerCase())
+        );
+        for (const er of erpRows) {
+          const key = (er.email || er.admission_number || er.id || '').toLowerCase();
+          if (!existingIdentifiers.has(key)) {
+            combinedStudents.push(er);
+            existingIdentifiers.add(key);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Canonical student query fallback:', e.message);
+    }
+
+    const total = combinedStudents.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const paginatedStudents = combinedStudents.slice(offset, offset + limit);
 
     return NextResponse.json({
       status: 'success',
-      students,
+      students: paginatedStudents,
       pagination: {
         page,
         limit,
