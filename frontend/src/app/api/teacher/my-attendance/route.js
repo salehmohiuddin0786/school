@@ -63,9 +63,9 @@ export async function GET(request) {
     } else {
       // Fallback to legacy teacher_attendence
       const legacyRows = await query(
-        `SELECT s_no as id, date, status
+        `SELECT s_no as id, date, COALESCE(attendence, '1') as status, remarks
          FROM teacher_attendence
-         WHERE teacher_id = ?
+         WHERE CONVERT(teacher_id USING utf8mb4) = CONVERT(? USING utf8mb4)
          ORDER BY date DESC LIMIT 60`,
         [session.id]
       );
@@ -73,11 +73,11 @@ export async function GET(request) {
       records = legacyRows.map((r) => ({
         id: r.id,
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date).split('T')[0],
-        status: r.status === '1' || r.status === 1 ? 'PRESENT' : 'ABSENT',
+        status: r.status === '1' || r.status === 1 || String(r.status).toUpperCase() === 'PRESENT' ? 'PRESENT' : (String(r.status).toUpperCase() === 'LATE' ? 'LATE' : 'ABSENT'),
         checkInTime: '08:30',
         checkOutTime: '15:30',
-        lateMinutes: 0,
-        remarks: 'Recorded',
+        lateMinutes: String(r.status).toUpperCase() === 'LATE' ? 15 : 0,
+        remarks: r.remarks || 'Recorded',
       }));
     }
 

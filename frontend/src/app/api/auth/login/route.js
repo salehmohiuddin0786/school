@@ -40,6 +40,8 @@ export async function POST(request) {
             TEACHER: 'teacher',
             STUDENT: 'student',
             PARENT: 'parent',
+            ACCOUNTANT: 'admin',
+            SUPER_ADMIN: 'owner',
           };
 
           mappedRole = ROLE_PORTAL_MAP[roleCode];
