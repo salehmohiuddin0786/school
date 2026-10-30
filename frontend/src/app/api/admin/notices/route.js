@@ -26,8 +26,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
-    const tenantRow = await queryOne('SELECT id FROM tenant LIMIT 1');
-    const validTenantId = session.tenantId || tenantRow?.id || 'a30ecf76-6525-407b-b180-bd9b681799f1';
+    let validTenantId = null;
+    if (session.tenantId) {
+      try {
+        const checkTenant = await queryOne('SELECT id FROM tenant WHERE id = ?', [session.tenantId]);
+        if (checkTenant) validTenantId = checkTenant.id;
+      } catch (err) {
+        console.warn('Tenant check warning:', err.message);
+      }
+    }
+    if (!validTenantId) {
+      const tenantRow = await queryOne('SELECT id FROM tenant LIMIT 1');
+      validTenantId = tenantRow?.id || 'a30ecf76-6525-407b-b180-bd9b681799f1';
+    }
     const noticeId = 'not_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 
     await query(

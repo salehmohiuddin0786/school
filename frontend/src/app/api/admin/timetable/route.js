@@ -12,6 +12,26 @@ async function ensureTimetableTable() {
   if (tableChecked) return;
   try {
     await query(`
+      CREATE TABLE IF NOT EXISTS teachers (
+        id varchar(40) NOT NULL,
+        fname varchar(50) NOT NULL,
+        lname varchar(50) DEFAULT '',
+        gender varchar(10) DEFAULT '',
+        dob date DEFAULT NULL,
+        image varchar(255) DEFAULT 'user.png',
+        phone varchar(20) DEFAULT '',
+        email varchar(50) DEFAULT '',
+        address varchar(512) DEFAULT '',
+        city varchar(50) DEFAULT '',
+        zip varchar(20) DEFAULT '',
+        state varchar(50) DEFAULT '',
+        class varchar(20) DEFAULT '',
+        section varchar(20) DEFAULT '',
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await query(`
       CREATE TABLE IF NOT EXISTS period_timetable (
         id int NOT NULL AUTO_INCREMENT,
         class varchar(50) NOT NULL,
@@ -148,8 +168,27 @@ export async function POST(request) {
       if (isTimeOverlapping(start_time, end_time, slot.start_time, slot.end_time)) {
         // 1. Teacher Conflict (if not break and teacher is assigned)
         if (!is_break && teacher_id && slot.teacher_id && String(teacher_id) === String(slot.teacher_id)) {
-          const teacher = await queryOne('SELECT fname, lname FROM teachers WHERE id = ?', [teacher_id]);
-          const tName = teacher ? `${teacher.fname} ${teacher.lname || ''}`.trim() : teacher_id;
+          let tName = teacher_id;
+          try {
+            const teacher = await queryOne('SELECT fname, lname FROM teachers WHERE id = ?', [teacher_id]);
+            if (teacher) {
+              tName = `${teacher.fname} ${teacher.lname || ''}`.trim();
+            } else {
+              const tpTeacher = await queryOne(`
+                SELECT u.firstName, u.lastName 
+                FROM teacherprofile tp
+                JOIN user u ON tp.userId = u.id
+                WHERE tp.id = ? OR tp.employeeCode = ?
+                LIMIT 1
+              `, [teacher_id, teacher_id]);
+              if (tpTeacher) {
+                tName = `${tpTeacher.firstName} ${tpTeacher.lastName || ''}`.trim();
+              }
+            }
+          } catch (tErr) {
+            console.warn('Teacher lookup fallback:', tErr.message);
+          }
+
           return NextResponse.json(
             { error: `Teacher Conflict: ${tName} is already assigned to Class ${slot.class}-${slot.section} (${slot.subject}) from ${slot.start_time} to ${slot.end_time}.` },
             { status: 409 }
