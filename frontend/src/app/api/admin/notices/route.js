@@ -3,11 +3,40 @@ import { query, queryOne } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import crypto from 'crypto';
 
+let cachedColumns = null;
+async function getNoticeColumns() {
+  if (cachedColumns) return cachedColumns;
+  try {
+    const cols = await query('SHOW COLUMNS FROM notice');
+    cachedColumns = new Set(cols.map(c => c.Field.toLowerCase()));
+    return cachedColumns;
+  } catch (err) {
+    return new Set();
+  }
+}
+
 export async function GET() {
   try {
-    const notices = await query('SELECT * FROM notice ORDER BY s_no DESC');
-    return NextResponse.json({ status: 'success', notices: notices || [] });
+    const cols = await getNoticeColumns();
+    const orderClause = cols.has('s_no') ? 'ORDER BY s_no DESC' : 'ORDER BY createdAt DESC';
+    const rows = await query(`SELECT * FROM notice ${orderClause}`);
+
+    const normalizedNotices = (rows || []).map(r => ({
+      s_no: r.s_no || r.id,
+      id: r.id,
+      title: r.title,
+      body: r.body || r.content || '',
+      content: r.content || r.body || '',
+      role: r.role || r.targetAudience || 'ALL',
+      targetAudience: r.targetAudience || r.role || 'ALL',
+      importance: r.importance || (r.isUrgent ? 'urgent' : 'normal'),
+      timestamp: r.timestamp || r.createdAt || new Date().toISOString(),
+      sender_id: r.sender_id || r.publishedById || 'Admin'
+    }));
+
+    return NextResponse.json({ status: 'success', notices: normalizedNotices });
   } catch (error) {
+    console.error('Notices GET error:', error);
     return NextResponse.json({ error: error.message, notices: [] }, { status: 500 });
   }
 }
@@ -20,12 +49,12 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { title, body: noticeBody, importance = '1', role = 'all', className = 'all' } = body;
+    const { title, body: noticeBody, content, importance = '1', role = 'all', className = 'all' } = body;
 
     const cleanTitle = (title || '').trim();
-    const cleanBody = (noticeBody || '').trim();
+    const textContent = (noticeBody || content || '').trim();
 
-    if (!cleanTitle || !cleanBody) {
+    if (!cleanTitle || !textContent) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
@@ -66,26 +95,50 @@ export async function POST(request) {
     const isUrgent = (importance === '1' || importance === 'urgent' || importance === 'high') ? 1 : 0;
     const noticeId = 'not_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 
+    const cols = await getNoticeColumns();
+    const insertFields = [];
+    const insertPlaceholders = [];
+    const insertValues = [];
+
+    const addField = (fieldName, val) => {
+      if (cols.has(fieldName.toLowerCase())) {
+        insertFields.push(fieldName);
+        insertPlaceholders.push('?');
+        insertValues.push(val);
+      }
+    };
+
+    addField('id', noticeId);
+    addField('tenantId', validTenantId);
+    addField('title', cleanTitle);
+    addField('content', textContent);
+    addField('body', textContent);
+    addField('sender_id', session.id || 'admin');
+    addField('editor_id', session.id || 'admin');
+    addField('publishedById', publishedById);
+    addField('targetAudience', targetAudience);
+    addField('isUrgent', isUrgent);
+    addField('file', '');
+    addField('importance', String(importance));
+    addField('role', role);
+    addField('class', className);
+
+    if (cols.has('timestamp')) {
+      insertFields.push('timestamp');
+      insertPlaceholders.push('NOW()');
+    }
+    if (cols.has('createdAt')) {
+      insertFields.push('createdAt');
+      insertPlaceholders.push('NOW()');
+    }
+    if (cols.has('updatedAt')) {
+      insertFields.push('updatedAt');
+      insertPlaceholders.push('NOW()');
+    }
+
     await query(
-      `INSERT INTO notice (
-        id, tenantId, title, content, body, sender_id, editor_id, publishedById, targetAudience, isUrgent, file, importance, role, class, timestamp, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
-      [
-        noticeId,
-        validTenantId,
-        cleanTitle,
-        cleanBody,
-        cleanBody,
-        session.id || 'admin',
-        session.id || 'admin',
-        publishedById,
-        targetAudience,
-        isUrgent,
-        '',
-        importance,
-        role,
-        className,
-      ]
+      `INSERT INTO notice (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`,
+      insertValues
     );
 
     return NextResponse.json({ status: 'success', message: 'Notice posted successfully', id: noticeId });
@@ -109,7 +162,13 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Notice id is required' }, { status: 400 });
     }
 
-    await query('DELETE FROM notice WHERE s_no = ? OR id = ?', [id, id]);
+    const cols = await getNoticeColumns();
+    if (cols.has('s_no')) {
+      await query('DELETE FROM notice WHERE s_no = ? OR id = ?', [id, id]);
+    } else {
+      await query('DELETE FROM notice WHERE id = ?', [id]);
+    }
+
     return NextResponse.json({ status: 'success', message: 'Notice deleted successfully' });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -55,7 +55,13 @@ export async function GET() {
         WHERE role = 'all' OR role = 'student' 
         ORDER BY s_no DESC 
         LIMIT 4
-      `),
+      `).catch(() => query(`
+        SELECT id as s_no, title, content as body, CASE WHEN isUrgent = 1 THEN 'urgent' ELSE 'normal' END as importance, createdAt as timestamp 
+        FROM notice 
+        WHERE targetAudience = 'ALL' OR targetAudience = 'STUDENTS' 
+        ORDER BY createdAt DESC 
+        LIMIT 4
+      `).catch(() => [])),
     ]);
 
     // Calculate attendance statistics
