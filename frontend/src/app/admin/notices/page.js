@@ -15,6 +15,7 @@ export default function NoticesAdminPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const [form, setForm] = useState({
     title: '',
@@ -40,6 +41,7 @@ export default function NoticesAdminPage() {
 
   const handlePostNotice = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
     try {
       const res = await fetch('/api/admin/notices', {
         method: 'POST',
@@ -47,15 +49,17 @@ export default function NoticesAdminPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (data.status === 'success') {
-        setMessage('Notice published successfully!');
-        setTimeout(() => setMessage(''), 3000);
-        setModalOpen(false);
-        setForm({ title: '', body: '', role: 'all', importance: '1' });
-        loadNotices();
+      if (!res.ok || data.status !== 'success') {
+        throw new Error(data.error || data.message || 'Failed to publish notice');
       }
+
+      setMessage('Notice published successfully!');
+      setTimeout(() => setMessage(''), 3000);
+      setModalOpen(false);
+      setForm({ title: '', body: '', role: 'all', importance: '1' });
+      loadNotices();
     } catch (err) {
-      console.error(err);
+      setErrorMsg(err.message);
     }
   };
 
@@ -150,6 +154,12 @@ export default function NoticesAdminPage() {
               </div>
 
               <form onSubmit={handlePostNotice} className="space-y-4 text-sm">
+                {errorMsg && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Notice Title *</label>
                   <input

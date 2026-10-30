@@ -22,7 +22,10 @@ export async function POST(request) {
     const body = await request.json();
     const { title, body: noticeBody, importance = '1', role = 'all', className = 'all' } = body;
 
-    if (!title || !noticeBody) {
+    const cleanTitle = (title || '').trim();
+    const cleanBody = (noticeBody || '').trim();
+
+    if (!cleanTitle || !cleanBody) {
       return NextResponse.json({ error: 'Title and content are required' }, { status: 400 });
     }
 
@@ -39,20 +42,45 @@ export async function POST(request) {
       const tenantRow = await queryOne('SELECT id FROM tenant LIMIT 1');
       validTenantId = tenantRow?.id || 'a30ecf76-6525-407b-b180-bd9b681799f1';
     }
+
+    let publishedById = null;
+    if (session.id) {
+      try {
+        const userExists = await queryOne('SELECT id FROM user WHERE id = ?', [session.id]);
+        if (userExists) publishedById = userExists.id;
+      } catch (err) {
+        // fallback
+      }
+    }
+
+    let targetAudience = 'ALL';
+    const cleanRole = String(role || '').toLowerCase();
+    if (cleanRole === 'teacher' || cleanRole === 'teachers' || cleanRole === 'faculty') {
+      targetAudience = 'TEACHERS';
+    } else if (cleanRole === 'student' || cleanRole === 'students') {
+      targetAudience = 'STUDENTS';
+    } else if (cleanRole === 'parent' || cleanRole === 'parents') {
+      targetAudience = 'PARENTS';
+    }
+
+    const isUrgent = (importance === '1' || importance === 'urgent' || importance === 'high') ? 1 : 0;
     const noticeId = 'not_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 
     await query(
       `INSERT INTO notice (
-        id, tenantId, title, content, body, sender_id, editor_id, file, importance, role, class, timestamp, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
+        id, tenantId, title, content, body, sender_id, editor_id, publishedById, targetAudience, isUrgent, file, importance, role, class, timestamp, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
       [
         noticeId,
         validTenantId,
-        title,
-        noticeBody,
-        noticeBody,
+        cleanTitle,
+        cleanBody,
+        cleanBody,
         session.id || 'admin',
         session.id || 'admin',
+        publishedById,
+        targetAudience,
+        isUrgent,
         '',
         importance,
         role,
