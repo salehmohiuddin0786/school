@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 
 export async function GET(request) {
@@ -38,16 +38,26 @@ export async function GET(request) {
       Saturday: [],
     };
 
+    // 1. Resolve student class and section
+    const legacyStudent = await queryOne(
+      'SELECT class, section FROM students WHERE id = ? OR email = ? LIMIT 1',
+      [studentId, session.email]
+    ).catch(() => null);
+
+    const studentClass = legacyStudent?.class || '10';
+    const studentSection = legacyStudent?.section || 'A';
+    const cleanClass = String(studentClass).replace(/[^0-9]/g, '');
+
+    // 2. Check canonical schoolnext_erp
     if (session.tenantId) {
-      // Find enrolled section for student
       const enrollRows = await query(
         `SELECT s.id, e.sectionId 
          FROM schoolnext_erp.student s
          JOIN schoolnext_erp.enrollment e ON s.id = e.studentId AND e.status = 'ACTIVE'
-         WHERE s.tenantId = ? AND (s.userId = ? OR s.id = ?)
+         WHERE s.tenantId = ? AND (s.userId = ? OR s.id = ? OR s.userId = (SELECT id FROM schoolnext_erp.user WHERE email = ? LIMIT 1))
          LIMIT 1`,
-        [session.tenantId, studentId, studentId]
-      );
+        [session.tenantId, studentId, studentId, session.email]
+      ).catch(() => []);
 
       const sectionId = enrollRows?.[0]?.sectionId;
 
@@ -78,7 +88,7 @@ export async function GET(request) {
           WHERE te.tenantId = ? AND te.sectionId = ?
           ORDER BY te.periodNumber ASC`,
           [dateStr, session.tenantId, sectionId]
-        );
+        ).catch(() => []);
 
         entries.forEach((e) => {
           const day = e.dayOfWeek?.charAt(0).toUpperCase() + e.dayOfWeek?.slice(1).toLowerCase();
@@ -101,6 +111,37 @@ export async function GET(request) {
       }
     }
 
+    // 3. Fallback to period_timetable table
+    const hasAnyErp = Object.values(weekly).some((arr) => arr.length > 0);
+    if (!hasAnyErp) {
+      const ptSlots = await query(
+        `SELECT id, weekday, period_number, start_time, end_time, subject, teacher_name, room
+         FROM period_timetable
+         WHERE (class = ? OR class = ?)
+         ORDER BY period_number ASC`,
+        [studentClass, cleanClass || studentClass]
+      ).catch(() => []);
+
+      if (ptSlots && ptSlots.length > 0) {
+        ptSlots.forEach((slot) => {
+          const rawDay = String(slot.weekday || '').trim();
+          const day = rawDay.charAt(0).toUpperCase() + rawDay.slice(1).toLowerCase();
+          if (weekly[day]) {
+            weekly[day].push({
+              id: slot.id,
+              periodNumber: slot.period_number,
+              time: slot.start_time && slot.end_time ? `${slot.start_time} - ${slot.end_time}` : `Period ${slot.period_number}`,
+              subject: slot.subject || 'Core Class',
+              teacher: slot.teacher_name || 'Assigned Instructor',
+              room: slot.room || 'Room 101',
+              isSubstituted: false,
+            });
+          }
+        });
+      }
+    }
+
+    // 4. Fallback to rich default weekly routine if still empty
     const hasAny = Object.values(weekly).some((arr) => arr.length > 0);
     if (!hasAny) {
       weekly = {

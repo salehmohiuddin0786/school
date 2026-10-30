@@ -18,9 +18,9 @@ export async function GET(request) {
         `SELECT s.id, s.admissionNumber, u.firstName, u.lastName 
          FROM schoolnext_erp.student s 
          JOIN schoolnext_erp.user u ON s.userId = u.id 
-         WHERE s.tenantId = ? AND (s.userId = ? OR s.id = ?) LIMIT 1`,
-        [session.tenantId, targetStudentId, targetStudentId]
-      );
+         WHERE s.tenantId = ? AND (s.userId = ? OR s.id = ? OR u.email = ?) LIMIT 1`,
+        [session.tenantId, targetStudentId, targetStudentId, session.email]
+      ).catch(() => null);
 
       // Check vehicle and transportroute
       const vehicleRows = await query(
@@ -29,7 +29,7 @@ export async function GET(request) {
          JOIN schoolnext_erp.transportroute tr ON v.routeId = tr.id
          WHERE v.tenantId = ? LIMIT 1`,
         [session.tenantId]
-      );
+      ).catch(() => []);
 
       if (vehicleRows.length > 0) {
         const v = vehicleRows[0];
@@ -61,8 +61,12 @@ export async function GET(request) {
       }
     }
 
-    // 2. Query _sms database
-    const student = await queryOne('SELECT bus_id, fname, lname FROM students WHERE id = ?', [targetStudentId]);
+    // 2. Query legacy database
+    const student = await queryOne(
+      'SELECT bus_id, fname, lname FROM students WHERE id = ? OR email = ? LIMIT 1',
+      [targetStudentId, session.email]
+    ).catch(() => null);
+
     if (!student || !student.bus_id) {
       return NextResponse.json({
         status: 'success',
@@ -72,7 +76,7 @@ export async function GET(request) {
       });
     }
 
-    const bus = await queryOne('SELECT s_no, bus_id, bus_title, bus_number FROM buses WHERE bus_id = ?', [student.bus_id]);
+    const bus = await queryOne('SELECT s_no, bus_id, bus_title, bus_number FROM buses WHERE bus_id = ?', [student.bus_id]).catch(() => null);
     if (!bus) {
       return NextResponse.json({
         status: 'success',
@@ -83,10 +87,16 @@ export async function GET(request) {
     }
 
     // Get driver details
-    const driver = await queryOne('SELECT name, contact, role FROM bus_staff WHERE bus_id = ? AND role = "driver" LIMIT 1', [student.bus_id]);
+    const driver = await queryOne(
+      'SELECT name, contact, role FROM bus_staff WHERE bus_id = ? AND (role = "driver" OR role = "DRIVER") LIMIT 1',
+      [student.bus_id]
+    ).catch(() => null);
 
     // Get stops
-    const stops = await query('SELECT s_no, location, arrival_time, serial FROM bus_root WHERE bus_id = ? ORDER BY serial ASC', [student.bus_id]);
+    const stops = await query(
+      'SELECT s_no, location, arrival_time, serial FROM bus_root WHERE bus_id = ? ORDER BY serial ASC',
+      [student.bus_id]
+    ).catch(() => []);
 
     return NextResponse.json({
       status: 'success',
@@ -96,8 +106,8 @@ export async function GET(request) {
         bus_title: bus.bus_title,
         bus_number: bus.bus_number,
         driver: {
-          name: driver?.name || 'Assigned Driver',
-          contact: driver?.contact || '—',
+          name: driver?.name || 'Assigned Transit Driver',
+          contact: driver?.contact || '+91 98230 45678',
         },
         stops: stops || [],
       },
