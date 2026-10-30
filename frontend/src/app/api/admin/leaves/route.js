@@ -13,9 +13,9 @@ export async function GET() {
       SELECT 
         l.s_no,
         l.sender_id,
-        t.fname,
-        t.lname,
-        t.email,
+        COALESCE(t.fname, u.firstName, '') as fname,
+        COALESCE(t.lname, u.lastName, '') as lname,
+        COALESCE(t.email, u.email, '') as email,
         l.leave_type,
         l.leave_desc,
         l.start_date,
@@ -25,6 +25,8 @@ export async function GET() {
         l.send_date
       FROM leaves l
       LEFT JOIN teachers t ON CONVERT(l.sender_id USING utf8mb4) = CONVERT(t.id USING utf8mb4)
+      LEFT JOIN teacherprofile tp ON (CONVERT(l.sender_id USING utf8mb4) = CONVERT(tp.id USING utf8mb4) OR CONVERT(l.sender_id USING utf8mb4) = CONVERT(tp.employeeCode USING utf8mb4))
+      LEFT JOIN user u ON tp.userId = u.id
       ORDER BY l.s_no DESC
     `);
 

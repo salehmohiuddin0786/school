@@ -11,38 +11,100 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
-    const className = searchParams.get('class');
-    const section = searchParams.get('section');
+    const className = (searchParams.get('class') || '').trim();
+    const section = (searchParams.get('section') || '').trim();
+    const rawClass = className ? className.replace(/^Class\s+/i, '').trim() : '';
+    const rawSection = section ? section.replace(/^Section\s+/i, '').trim() : '';
 
-    let sql = `
-      SELECT 
-        s.id as student_id,
-        s.fname,
-        s.lname,
-        s.class,
-        s.section,
-        COALESCE(a.attendence, '0') as status,
-        a.date as attendance_date
-      FROM students s
-      LEFT JOIN attendence a 
-        ON s.id = a.student_id 
-        AND DATE(a.date) = ?
-      WHERE 1=1
-    `;
-    const params = [date];
+    const records = [];
 
-    if (className) {
-      sql += ' AND s.class = ?';
-      params.push(className);
+    // 1. Query legacy students
+    try {
+      let sql = `
+        SELECT 
+          s.id as student_id,
+          s.fname,
+          s.lname,
+          s.class,
+          s.section,
+          COALESCE(a.attendence, '0') as status,
+          a.date as attendance_date
+        FROM students s
+        LEFT JOIN attendence a 
+          ON CONVERT(s.id USING utf8mb4) = CONVERT(a.student_id USING utf8mb4)
+          AND DATE(a.date) = ?
+        WHERE 1=1
+      `;
+      const params = [date];
+
+      if (className) {
+        sql += ' AND (s.class = ? OR s.class = ?)';
+        params.push(className, rawClass);
+      }
+      if (section) {
+        sql += ' AND (s.section = ? OR s.section = ?)';
+        params.push(section, rawSection);
+      }
+
+      sql += ' ORDER BY s.fname ASC';
+      const legacyRows = await query(sql, params);
+      if (Array.isArray(legacyRows)) {
+        records.push(...legacyRows);
+      }
+    } catch (e) {
+      console.warn('Legacy attendance query warning:', e.message);
     }
-    if (section) {
-      sql += ' AND s.section = ?';
-      params.push(section);
+
+    // 2. Query canonical student table
+    try {
+      let erpWhere = ' WHERE 1=1';
+      const erpParams = [date];
+
+      if (className) {
+        erpWhere += ' AND (c.name = ? OR c.name = ? OR c.code = ?)';
+        erpParams.push(className, `Class ${rawClass}`, `CLS-${rawClass}`);
+      }
+      if (section) {
+        erpWhere += ' AND (sec.name = ? OR sec.name = ?)';
+        erpParams.push(section, `Section ${rawSection}`);
+      }
+
+      const erpSql = `
+        SELECT 
+          s.id as student_id,
+          u.firstName as fname,
+          u.lastName as lname,
+          COALESCE(c.name, ?) as class,
+          COALESCE(sec.name, ?) as section,
+          COALESCE(a.attendence, '0') as status,
+          a.date as attendance_date
+        FROM student s
+        JOIN user u ON s.userId = u.id
+        LEFT JOIN enrollment e ON s.id = e.studentId AND e.status = 'ACTIVE'
+        LEFT JOIN section sec ON e.sectionId = sec.id
+        LEFT JOIN course c ON sec.courseId = c.id
+        LEFT JOIN attendence a 
+          ON (CONVERT(s.id USING utf8mb4) = CONVERT(a.student_id USING utf8mb4) OR CONVERT(s.admissionNumber USING utf8mb4) = CONVERT(a.student_id USING utf8mb4))
+          AND DATE(a.date) = ?
+        ${erpWhere}
+        ORDER BY u.firstName ASC
+      `;
+
+      const erpRows = await query(erpSql, [className || 'Class 10', section || 'A', ...erpParams]);
+      if (Array.isArray(erpRows)) {
+        const existingIds = new Set(records.map(r => String(r.student_id).toLowerCase().trim()));
+        for (const er of erpRows) {
+          const key = String(er.student_id).toLowerCase().trim();
+          if (!existingIds.has(key)) {
+            existingIds.add(key);
+            records.push(er);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Canonical attendance query warning:', e.message);
     }
 
-    sql += ' ORDER BY s.fname ASC';
-
-    const records = await query(sql, params);
     return NextResponse.json({ status: 'success', date, records });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -101,7 +163,6 @@ export async function POST(request) {
       }
 
       if (!isAuthorized && teacherRows.length > 0) {
-        // Allow if teacher teaches this class
         isAuthorized = true;
       }
 

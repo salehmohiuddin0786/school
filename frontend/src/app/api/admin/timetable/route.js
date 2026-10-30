@@ -19,6 +19,9 @@ export async function GET(request) {
     const section = searchParams.get('section') || '';
     const weekday = searchParams.get('weekday') || '';
 
+    const rawClass = className ? className.replace(/^Class\s+/i, '').trim() : '';
+    const rawSection = section ? section.replace(/^Section\s+/i, '').trim() : '';
+
     let sql = `
       SELECT 
         pt.id,
@@ -33,21 +36,23 @@ export async function GET(request) {
         pt.teacher_id,
         pt.classroom,
         pt.is_break,
-        t.fname as teacher_fname,
-        t.lname as teacher_lname
+        COALESCE(t.fname, u.firstName, '') as teacher_fname,
+        COALESCE(t.lname, u.lastName, '') as teacher_lname
       FROM period_timetable pt
-      LEFT JOIN teachers t ON pt.teacher_id = t.id
+      LEFT JOIN teachers t ON CONVERT(pt.teacher_id USING utf8mb4) = CONVERT(t.id USING utf8mb4)
+      LEFT JOIN teacherprofile tp ON (CONVERT(pt.teacher_id USING utf8mb4) = CONVERT(tp.id USING utf8mb4) OR CONVERT(pt.teacher_id USING utf8mb4) = CONVERT(tp.employeeCode USING utf8mb4))
+      LEFT JOIN user u ON tp.userId = u.id
       WHERE 1=1
     `;
     const params = [];
 
     if (className) {
-      sql += ' AND pt.class = ?';
-      params.push(className);
+      sql += ' AND (pt.class = ? OR pt.class = ?)';
+      params.push(className, rawClass);
     }
     if (section) {
-      sql += ' AND pt.section = ?';
-      params.push(section);
+      sql += ' AND (pt.section = ? OR pt.section = ?)';
+      params.push(section, rawSection);
     }
     if (weekday) {
       sql += ' AND pt.weekday = ?';

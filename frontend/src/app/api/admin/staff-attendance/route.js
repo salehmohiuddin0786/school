@@ -13,37 +13,74 @@ export async function GET(request) {
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
     const month = searchParams.get('month'); // optional YYYY-MM
 
-    // 1. Daily staff attendance list
-    const sql = `
-      SELECT 
-        t.id as teacher_id,
-        t.fname,
-        t.lname,
-        t.subject,
-        t.email,
-        t.phone,
-        COALESCE(ta.attendence, 'NOT_MARKED') as status,
-        ta.remarks,
-        ta.updated_at
-      FROM teachers t
-      LEFT JOIN teacher_attendence ta 
-        ON t.id = ta.teacher_id
-        AND ta.date = ?
-      ORDER BY t.fname ASC
-    `;
-    const staffRecords = await query(sql, [date]);
+    const staffRecords = [];
 
-    // 2. Monthly summary stats
+    // 1. Daily staff attendance list - legacy teachers
+    try {
+      const sql = `
+        SELECT 
+          t.id as teacher_id,
+          t.fname,
+          t.lname,
+          t.subject,
+          t.email,
+          t.phone,
+          COALESCE(ta.attendence, 'NOT_MARKED') as status,
+          ta.remarks,
+          ta.updated_at
+        FROM teachers t
+        LEFT JOIN teacher_attendence ta 
+          ON CONVERT(t.id USING utf8mb4) = CONVERT(ta.teacher_id USING utf8mb4)
+          AND ta.date = ?
+        ORDER BY t.fname ASC
+      `;
+      const legacyRecords = await query(sql, [date]);
+      if (Array.isArray(legacyRecords)) {
+        staffRecords.push(...legacyRecords);
+      }
+    } catch (e) {
+      console.warn('Legacy staff attendance query warning:', e.message);
+    }
+
+    // 2. Canonical teachers fallback
+    try {
+      const erpSql = `
+        SELECT 
+          tp.id as teacher_id,
+          u.firstName as fname,
+          u.lastName as lname,
+          COALESCE(tp.specialization, 'General') as subject,
+          u.email,
+          COALESCE(u.phone, '') as phone,
+          COALESCE(ta.attendence, 'NOT_MARKED') as status,
+          ta.remarks,
+          ta.updated_at
+        FROM teacherprofile tp
+        JOIN user u ON tp.userId = u.id
+        LEFT JOIN teacher_attendence ta
+          ON (CONVERT(tp.id USING utf8mb4) = CONVERT(ta.teacher_id USING utf8mb4) OR CONVERT(tp.employeeCode USING utf8mb4) = CONVERT(ta.teacher_id USING utf8mb4))
+          AND ta.date = ?
+        ORDER BY u.firstName ASC
+      `;
+      const erpRecords = await query(erpSql, [date]);
+      if (Array.isArray(erpRecords)) {
+        const existingEmails = new Set(
+          staffRecords.map(r => (r.email || r.teacher_id || '').toLowerCase().trim())
+        );
+        for (const er of erpRecords) {
+          const key = (er.email || er.teacher_id || '').toLowerCase().trim();
+          if (!existingEmails.has(key)) {
+            existingEmails.add(key);
+            staffRecords.push(er);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Canonical staff attendance query warning:', e.message);
+    }
+
+    // 3. Monthly summary stats
     const targetMonth = month || date.substring(0, 7);
-    const summaryRows = await query(`
-      SELECT 
-        attendence as status,
-        COUNT(*) as count
-      FROM teacher_attendence
-      WHERE DATE_FORMAT(date, '%Y-%m') = ?
-      GROUP BY attendence
-    `, [targetMonth]);
-
     const summary = {
       PRESENT: 0,
       ABSENT: 0,
@@ -52,10 +89,26 @@ export async function GET(request) {
       PAID_LEAVE: 0,
       UNPAID_LEAVE: 0,
     };
-    for (const row of summaryRows) {
-      if (summary[row.status] !== undefined) {
-        summary[row.status] = row.count;
+
+    try {
+      const summaryRows = await query(`
+        SELECT 
+          attendence as status,
+          COUNT(*) as count
+        FROM teacher_attendence
+        WHERE DATE_FORMAT(date, '%Y-%m') = ?
+        GROUP BY attendence
+      `, [targetMonth]);
+
+      if (Array.isArray(summaryRows)) {
+        for (const row of summaryRows) {
+          if (summary[row.status] !== undefined) {
+            summary[row.status] = row.count;
+          }
+        }
       }
+    } catch (e) {
+      console.warn('Staff attendance summary warning:', e.message);
     }
 
     return NextResponse.json({
@@ -98,15 +151,14 @@ export async function POST(request) {
          ON DUPLICATE KEY UPDATE 
            attendence = VALUES(attendence),
            remarks = VALUES(remarks),
-           marked_by = VALUES(marked_by),
            updated_at = NOW()`,
-        [item.teacher_id, item.status, date, session.id || 'admin', item.remarks || null]
+        [item.teacher_id, item.status, date, session.id || 'admin', item.remarks || '']
       );
     }
 
     return NextResponse.json({
       status: 'success',
-      message: `Staff attendance for ${date} recorded successfully`,
+      message: `Staff attendance saved for ${attendanceList.length} members.`,
     });
   } catch (error) {
     console.error('Staff attendance POST error:', error);

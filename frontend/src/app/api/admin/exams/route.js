@@ -14,6 +14,9 @@ export async function GET(request) {
     const className = searchParams.get('class');
     const section = searchParams.get('section');
 
+    const rawClass = className ? className.replace(/^Class\s+/i, '').trim() : '';
+    const rawSection = section ? section.replace(/^Section\s+/i, '').trim() : '';
+
     if (examId) {
       const exam = await query('SELECT * FROM exams WHERE exam_id = ?', [examId]);
       const marks = await query(`
@@ -23,14 +26,19 @@ export async function GET(request) {
           m.subject,
           m.student_id,
           m.marks,
-          s.fname,
-          s.lname,
-          s.class,
-          s.section
+          COALESCE(s.fname, u.firstName, '') as fname,
+          COALESCE(s.lname, u.lastName, '') as lname,
+          COALESCE(s.class, c.name, '') as class,
+          COALESCE(s.section, sec.name, '') as section
         FROM marks m
-        JOIN students s ON m.student_id = s.id
+        LEFT JOIN students s ON CONVERT(m.student_id USING utf8mb4) = CONVERT(s.id USING utf8mb4)
+        LEFT JOIN student st ON (CONVERT(m.student_id USING utf8mb4) = CONVERT(st.id USING utf8mb4) OR CONVERT(m.student_id USING utf8mb4) = CONVERT(st.admissionNumber USING utf8mb4))
+        LEFT JOIN user u ON st.userId = u.id
+        LEFT JOIN enrollment e ON st.id = e.studentId AND e.status = 'ACTIVE'
+        LEFT JOIN section sec ON e.sectionId = sec.id
+        LEFT JOIN course c ON sec.courseId = c.id
         WHERE m.exam_id = ?
-        ORDER BY s.fname ASC
+        ORDER BY fname ASC
       `, [examId]);
       return NextResponse.json({ status: 'success', exam: exam[0] || null, marks });
     }
@@ -38,12 +46,12 @@ export async function GET(request) {
     let sql = 'SELECT * FROM exams WHERE 1=1';
     const params = [];
     if (className) {
-      sql += ' AND class = ?';
-      params.push(className);
+      sql += ' AND (class = ? OR class = ?)';
+      params.push(className, rawClass);
     }
     if (section) {
-      sql += ' AND section = ?';
-      params.push(section);
+      sql += ' AND (section = ? OR section = ?)';
+      params.push(section, rawSection);
     }
     sql += ' ORDER BY exam_date ASC, start_time ASC, s_no DESC';
 

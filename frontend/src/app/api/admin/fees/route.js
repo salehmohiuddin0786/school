@@ -137,9 +137,11 @@ export async function GET(request) {
     // 2. Legacy fallback
     const legacyRecords = await query(`
       SELECT f.s_no, f.id as studentId, f.month, f.total, f.paid, f.balance, f.timestamp,
-             s.fname, s.lname, s.roll_no, s.class, s.section, s.phone
+             COALESCE(s.fname, '') as fname, COALESCE(s.lname, '') as lname,
+             COALESCE(s.roll_no, '') as roll_no, COALESCE(s.class, '10') as class,
+             COALESCE(s.section, 'A') as section, COALESCE(s.phone, '') as phone
       FROM fee_record f
-      JOIN students s ON f.id = s.id
+      LEFT JOIN students s ON CONVERT(f.id USING utf8mb4) = CONVERT(s.id USING utf8mb4)
       ORDER BY f.s_no DESC LIMIT 40
     `);
 
