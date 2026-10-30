@@ -8,8 +8,50 @@ function isTimeOverlapping(s1, e1, s2, e2) {
   return s1 < e2 && e1 > s2;
 }
 
+let tableChecked = false;
+async function ensureExamsTable() {
+  if (tableChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS exams (
+        s_no int NOT NULL AUTO_INCREMENT,
+        exam_id varchar(100) NOT NULL,
+        exam_title varchar(255) NOT NULL,
+        subject varchar(100) NOT NULL,
+        class varchar(50) NOT NULL,
+        section varchar(50) DEFAULT 'A',
+        total_marks varchar(50) DEFAULT '100',
+        passing_marks varchar(50) DEFAULT '33',
+        timestamp timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+        exam_date date DEFAULT NULL,
+        start_time time DEFAULT NULL,
+        end_time time DEFAULT NULL,
+        room varchar(100) DEFAULT NULL,
+        is_published tinyint DEFAULT '1',
+        PRIMARY KEY (s_no),
+        UNIQUE KEY exam_id (exam_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS marks (
+        s_no int NOT NULL AUTO_INCREMENT,
+        exam_id varchar(40) NOT NULL,
+        subject varchar(255) NOT NULL,
+        student_id varchar(40) NOT NULL,
+        marks varchar(10) NOT NULL DEFAULT '',
+        PRIMARY KEY (s_no)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    tableChecked = true;
+  } catch (err) {
+    console.warn('ensureExamsTable warning:', err.message);
+  }
+}
+
 export async function GET(request) {
   try {
+    await ensureExamsTable();
     const { searchParams } = new URL(request.url);
     const examId = searchParams.get('exam_id');
     const className = searchParams.get('class');
@@ -134,6 +176,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    await ensureExamsTable();
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'teacher')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
