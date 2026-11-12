@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
 
-let pool;
+let pool = globalThis.__mysqlPool;
 
 export function getPool() {
   if (!pool) {
@@ -13,8 +13,9 @@ export function getPool() {
       connectionLimit: 10,
       queueLimit: 0,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 0,
+      keepAliveInitialDelay: 10000,
     });
+    globalThis.__mysqlPool = pool;
   }
   return pool;
 }
