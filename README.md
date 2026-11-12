@@ -86,13 +86,13 @@ npm test
 
 ### Step 5: Start Development Servers
 ```bash
-# Starts Express API (:5000) and Next.js (:3000) concurrently
+# Starts Express API (:6000) and Next.js (:4200) concurrently
 npm run dev
 ```
 
-- **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:5000/api/v1](http://localhost:5000/api/v1)
-- **Health Check**: [http://localhost:5000/api/v1/health](http://localhost:5000/api/v1/health)
+- **Frontend**: [http://localhost:4200](http://localhost:4200)
+- **Backend API**: [http://localhost:6000/api/v1](http://localhost:6000/api/v1)
+- **Health Check**: [http://localhost:6000/api/v1/health](http://localhost:6000/api/v1/health)
 
 ---
 

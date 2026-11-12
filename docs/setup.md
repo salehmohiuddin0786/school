@@ -24,7 +24,7 @@ CREATE DATABASE schoolnext_erp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 Create `backend/.env` from `backend/.env.example`:
 
 ```env
-PORT=5000
+PORT=6000
 NODE_ENV=development
 DATABASE_URL="mysql://root:@localhost:3306/schoolnext_erp"
 JWT_ACCESS_SECRET="super_secret_access_jwt_key_schoolnext_2026_dev"
@@ -32,7 +32,7 @@ JWT_REFRESH_SECRET="super_secret_refresh_jwt_key_schoolnext_2026_dev"
 JWT_ACCESS_EXPIRES_IN="15m"
 JWT_REFRESH_EXPIRES_IN_DAYS=7
 COOKIE_SECRET="schoolnext_cookie_secret_key_2026"
-CORS_ORIGIN="http://localhost:3000,http://localhost:3005"
+CORS_ORIGIN="http://localhost:4200,http://localhost:3000,http://localhost:3005"
 COOKIE_DOMAIN=""
 COOKIE_SECURE="false"
 
@@ -47,7 +47,9 @@ SEED_ACCOUNTANT_PASSWORD="Accountant@Greenwood2026!"
 
 Create `frontend/.env.local`:
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+PORT=4200
+NEXT_PUBLIC_APP_URL=http://localhost:4200
+NEXT_PUBLIC_API_URL=http://localhost:6000/api/v1
 NEXT_PUBLIC_APP_NAME="SchoolNext ERP"
 ```
 
@@ -79,7 +81,7 @@ npm test
 
 ## 4. Running the Development Environment
 
-Start both backend (Express on port 5000) and frontend (Next.js on port 3000) concurrently:
+Start both backend (Express on port 6000) and frontend (Next.js on port 4200) concurrently:
 
 ```bash
 npm run dev

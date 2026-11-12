@@ -8,7 +8,7 @@ dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const configSchema = z.object({
-  PORT: z.coerce.number().default(5000),
+  PORT: z.coerce.number().default(6000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_ACCESS_SECRET: z.string().min(16, 'JWT_ACCESS_SECRET must be at least 16 chars'),
@@ -16,7 +16,7 @@ const configSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN_DAYS: z.coerce.number().default(7),
   COOKIE_SECRET: z.string().min(16, 'COOKIE_SECRET must be at least 16 chars'),
-  CORS_ORIGIN: z.string().default('http://localhost:3000,http://localhost:3005'),
+  CORS_ORIGIN: z.string().default('http://localhost:4200,http://localhost:3000,http://localhost:3005'),
   COOKIE_DOMAIN: z.string().optional().default(''),
   COOKIE_SECURE: z.string().transform((v) => v === 'true').default('false'),
 

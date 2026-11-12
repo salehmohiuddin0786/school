@@ -478,7 +478,7 @@ export async function POST(request) {
         },
         invitation: {
           token: inviteToken,
-          activationLink: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/activate?token=${inviteToken}`,
+          activationLink: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:4200'}/activate?token=${inviteToken}`,
           activationUrl: `/activate?token=${inviteToken}`,
           expiresAt: inviteExpires.toISOString(),
         },
