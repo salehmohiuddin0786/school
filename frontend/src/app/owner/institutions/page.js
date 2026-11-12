@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -34,7 +34,7 @@ import {
   DollarSign
 } from 'lucide-react';
 
-export default function InstitutionsManagementPage() {
+function InstitutionsManagementContent() {
   const searchParams = useSearchParams();
   const initialStatus = searchParams?.get('status') || '';
 
@@ -1021,5 +1021,21 @@ export default function InstitutionsManagementPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function InstitutionsManagementPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardLayout role="owner">
+          <div className="min-h-[60vh] flex items-center justify-center text-slate-500 text-xs font-semibold">
+            Loading institution management workspace...
+          </div>
+        </DashboardLayout>
+      }
+    >
+      <InstitutionsManagementContent />
+    </Suspense>
   );
 }
