@@ -32,7 +32,23 @@ function LoginForm() {
 
   const demoAccounts = [
     {
-      role: 'Admin',
+      role: 'Platform Owner',
+      badge: 'bg-purple-50 text-purple-700 border-purple-200',
+      email: 'superadmin@schoolnext.internal',
+      password: '123',
+      dest: '/owner',
+      icon: Sparkles,
+    },
+    {
+      role: 'Institution Owner',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200',
+      email: 'owner@gmail.com',
+      password: '123',
+      dest: '/owner',
+      icon: BarChart3,
+    },
+    {
+      role: 'Campus Admin',
       badge: 'bg-blue-50 text-blue-700 border-blue-200',
       email: 'admin@gmail.com',
       password: '123',
@@ -54,14 +70,6 @@ function LoginForm() {
       password: '123',
       dest: '/student',
       icon: GraduationCap,
-    },
-    {
-      role: 'Owner',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200',
-      email: 'owner@gmail.com',
-      password: '123',
-      dest: '/owner',
-      icon: BarChart3,
     },
     {
       role: 'Parent',
@@ -86,7 +94,11 @@ function LoginForm() {
 
   useEffect(() => {
     if (roleParam) {
-      const match = demoAccounts.find(d => d.role.toLowerCase() === roleParam.toLowerCase());
+      const match = demoAccounts.find(d => 
+        d.role.toLowerCase() === roleParam.toLowerCase() || 
+        d.role.toLowerCase().replace(/\s+/g, '_') === roleParam.toLowerCase() ||
+        d.role.toLowerCase().includes(roleParam.toLowerCase())
+      );
       if (match) {
         setEmail(match.email);
         setPassword(match.password);

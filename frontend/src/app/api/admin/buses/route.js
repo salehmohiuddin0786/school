@@ -72,6 +72,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    if (session.isPlatformOwner && !session.tenantId) {
+      return NextResponse.json({ error: 'Platform Owner manages SaaS settings, not daily campus transport operations.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { bus_title, bus_number, stops } = body;
 
@@ -107,6 +111,10 @@ export async function DELETE(request) {
     const session = await getSessionUser();
     if (!session || (session.role !== 'admin' && session.role !== 'owner')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    if (session.isPlatformOwner && !session.tenantId) {
+      return NextResponse.json({ error: 'Platform Owner manages SaaS settings, not daily campus transport operations.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

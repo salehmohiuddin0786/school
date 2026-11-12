@@ -68,6 +68,14 @@ export async function GET(request) {
         erpWhere += ' AND (sec.name = ? OR sec.name = ?)';
         erpParams.push(section, `Section ${rawSection}`);
       }
+      if (session.tenantId) {
+        erpWhere += ' AND s.tenantId = ?';
+        erpParams.push(session.tenantId);
+      }
+      if (session.campusId) {
+        erpWhere += ' AND (s.campusId = ? OR s.campusId IS NULL)';
+        erpParams.push(session.campusId);
+      }
 
       const erpSql = `
         SELECT 

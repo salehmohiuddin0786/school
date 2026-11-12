@@ -11,6 +11,52 @@ export async function GET() {
 
     let profile = { ...session };
 
+    // Fetch canonical user state from schoolnext_erp.user if possible
+    try {
+      const erpUser = await queryOne(
+        `SELECT u.id, u.tenantId, u.email, u.firstName, u.lastName, u.phone, u.avatarUrl, u.isSuperAdmin, r.code as roleCode
+         FROM schoolnext_erp.user u
+         LEFT JOIN schoolnext_erp.userrole ur ON u.id = ur.userId
+         LEFT JOIN schoolnext_erp.role r ON ur.roleId = r.id
+         WHERE u.id = ?`,
+        [session.id]
+      );
+
+      if (erpUser) {
+        const isPlatformOwner = Boolean(erpUser.isSuperAdmin === 1 || !erpUser.tenantId || erpUser.roleCode === 'SUPER_ADMIN');
+        const isInstitutionOwner = Boolean(!isPlatformOwner && (erpUser.roleCode === 'OWNER' || erpUser.roleCode === 'INSTITUTION_OWNER'));
+        
+        let campusId = null;
+        let institutionName = null;
+        let campusName = null;
+
+        if (erpUser.tenantId) {
+          const tenantInfo = await queryOne('SELECT name FROM schoolnext_erp.tenant WHERE id = ?', [erpUser.tenantId]).catch(() => null);
+          institutionName = tenantInfo?.name || null;
+
+          const campusInfo = await queryOne('SELECT id, name FROM schoolnext_erp.campus WHERE tenantId = ? ORDER BY isMain DESC LIMIT 1', [erpUser.tenantId]).catch(() => null);
+          campusId = campusInfo?.id || null;
+          campusName = campusInfo?.name || null;
+        }
+
+        profile = {
+          ...profile,
+          tenantId: erpUser.tenantId,
+          campusId,
+          institutionName,
+          campusName,
+          isPlatformOwner,
+          isInstitutionOwner,
+          roleCode: erpUser.roleCode,
+          name: `${erpUser.firstName || ''} ${erpUser.lastName || ''}`.trim() || session.name,
+          phone: erpUser.phone || '',
+          image: erpUser.avatarUrl || '1701517055user.png',
+        };
+      }
+    } catch (e) {
+      // Fallback
+    }
+
     if (session.role === 'admin') {
       const u = await queryOne('SELECT firstName, lastName, phone, avatarUrl FROM user WHERE id = ?', [session.id]).catch(() => null);
       if (u) {

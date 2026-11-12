@@ -14,25 +14,46 @@ export async function GET(request) {
     const monthDate = `${targetMonth}-01`;
 
     // 1. Get all staff/teachers
-    const staffList = await query(`
-      SELECT 
-        t.id as staff_id,
-        t.fname,
-        t.lname,
-        t.subject,
-        t.email,
-        COALESCE(sss.basic_salary, 25000) as basic_salary,
-        COALESCE(sss.allowances, 10000) as allowances,
-        COALESCE(sss.deductions, 2000) as deductions,
-        COALESCE(sss.monthly_salary, 35000) as monthly_salary,
-        sss.effective_date,
-        sss.joining_date,
-        COALESCE(sss.employment_status, 'ACTIVE') as employment_status
-      FROM teachers t
-      LEFT JOIN staff_salary_settings sss 
-        ON t.id = sss.staff_id
-      ORDER BY t.fname ASC
-    `);
+    let staffList = [];
+    if (session.tenantId) {
+      staffList = await query(`
+        SELECT 
+          t.id as staff_id,
+          u.firstName as fname,
+          u.lastName as lname,
+          t.designation as subject,
+          u.email,
+          35000 as basic_salary,
+          5000 as allowances,
+          1000 as deductions,
+          39000 as monthly_salary,
+          'ACTIVE' as employment_status
+        FROM schoolnext_erp.teacherprofile t
+        JOIN schoolnext_erp.user u ON t.userId = u.id
+        WHERE t.tenantId = ?
+        ORDER BY u.firstName ASC
+      `, [session.tenantId]).catch(() => []);
+    } else {
+      staffList = await query(`
+        SELECT 
+          t.id as staff_id,
+          t.fname,
+          t.lname,
+          t.subject,
+          t.email,
+          COALESCE(sss.basic_salary, 25000) as basic_salary,
+          COALESCE(sss.allowances, 10000) as allowances,
+          COALESCE(sss.deductions, 2000) as deductions,
+          COALESCE(sss.monthly_salary, 35000) as monthly_salary,
+          sss.effective_date,
+          sss.joining_date,
+          COALESCE(sss.employment_status, 'ACTIVE') as employment_status
+        FROM teachers t
+        LEFT JOIN staff_salary_settings sss 
+          ON t.id = sss.staff_id
+        ORDER BY t.fname ASC
+      `).catch(() => []);
+    }
 
     // 2. Days in month
     const [yearStr, mStr] = targetMonth.split('-');

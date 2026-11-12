@@ -21,7 +21,7 @@ export async function POST(request) {
 
     try {
       const erpUser = await queryOne(
-        `SELECT u.id, u.tenantId, u.email, u.passwordHash, u.firstName, u.lastName, r.code as roleCode 
+        `SELECT u.id, u.tenantId, u.email, u.passwordHash, u.firstName, u.lastName, u.isSuperAdmin, r.code as roleCode 
          FROM schoolnext_erp.user u 
          LEFT JOIN schoolnext_erp.userrole ur ON u.id = ur.userId 
          LEFT JOIN schoolnext_erp.role r ON ur.roleId = r.id 
@@ -33,6 +33,9 @@ export async function POST(request) {
         const isValid = await verifyPassword(password, erpUser.passwordHash);
         if (isValid) {
           const roleCode = erpUser.roleCode || 'STUDENT';
+          const isPlatformOwner = Boolean(erpUser.isSuperAdmin === 1 || !erpUser.tenantId || roleCode === 'SUPER_ADMIN');
+          const isInstitutionOwner = Boolean(!isPlatformOwner && (roleCode === 'OWNER' || roleCode === 'INSTITUTION_OWNER'));
+
           const ROLE_PORTAL_MAP = {
             OWNER: 'owner',
             SCHOOL_ADMIN: 'admin',
@@ -44,19 +47,32 @@ export async function POST(request) {
             SUPER_ADMIN: 'owner',
           };
 
-          mappedRole = ROLE_PORTAL_MAP[roleCode];
-          if (!mappedRole) {
-            return NextResponse.json(
-              { status: 'error', message: `Access denied: Role '${roleCode}' does not have a designated web portal configured.` },
-              { status: 403 }
-            );
+          mappedRole = ROLE_PORTAL_MAP[roleCode] || 'admin';
+
+          let campusId = null;
+          let institutionName = null;
+          let campusName = null;
+
+          if (erpUser.tenantId) {
+            const tenantInfo = await queryOne('SELECT name FROM schoolnext_erp.tenant WHERE id = ?', [erpUser.tenantId]).catch(() => null);
+            institutionName = tenantInfo?.name || null;
+
+            const campusInfo = await queryOne('SELECT id, name FROM schoolnext_erp.campus WHERE tenantId = ? ORDER BY isMain DESC LIMIT 1', [erpUser.tenantId]).catch(() => null);
+            campusId = campusInfo?.id || null;
+            campusName = campusInfo?.name || null;
           }
 
           profile = {
             id: erpUser.id,
             tenantId: erpUser.tenantId,
+            campusId,
             email: erpUser.email,
             role: mappedRole,
+            roleCode,
+            isPlatformOwner,
+            isInstitutionOwner,
+            institutionName,
+            campusName,
             name: `${erpUser.firstName || ''} ${erpUser.lastName || ''}`.trim() || erpUser.email,
             image: '1701517055user.png',
           };

@@ -24,7 +24,10 @@ import {
   School,
   Sparkles,
   RefreshCw,
-  FileText
+  FileText,
+  Building2,
+  PlusCircle,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function DashboardLayout({ children, role = 'admin' }) {
@@ -61,21 +64,25 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     router.push('/login');
   };
 
+  const isPlatformOwner = Boolean(user?.isPlatformOwner || !user?.tenantId || user?.isSuperAdmin || user?.roleCode === 'SUPER_ADMIN');
+  const isInstitutionOwner = Boolean(!isPlatformOwner && (user?.isInstitutionOwner || user?.role === 'owner' || user?.roleCode === 'OWNER'));
+
   const roleNavItems = {
     admin: [
-      { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-      { name: 'Students', href: '/admin/students', icon: GraduationCap },
-      { name: 'Faculty & Teachers', href: '/admin/teachers', icon: Users },
-      { name: 'Student Roll Call', href: '/admin/attendance', icon: CalendarCheck },
+      { name: 'Campus Dashboard', href: '/admin', icon: LayoutDashboard },
+      { name: 'Campus Operations', href: '/admin/operations', icon: RefreshCw },
+      { section: 'People & Attendance' },
+      { name: 'Student Management', href: '/admin/students', icon: GraduationCap },
+      { name: 'Staff Management', href: '/admin/teachers', icon: Users },
       { name: 'Staff Attendance', href: '/admin/teacher-attendance', icon: UserCheck },
-      { name: 'Teacher Substitution', href: '/admin/substitutions', icon: RefreshCw },
-      { name: 'Classes & Fees', href: '/admin/classes-subjects', icon: BookOpen },
-      { name: 'Fee Counter POS', href: '/admin/fees', icon: CreditCard },
-      { name: 'Exam Timetable', href: '/admin/exams', icon: Award },
-      { name: 'Report Cards (CBSE)', href: '/admin/exams/report-cards', icon: FileText },
-      { name: 'Class Timetable', href: '/admin/timetable', icon: Clock },
-      { name: 'Bus Transport', href: '/admin/buses', icon: Bus },
-      { name: 'Notice Board', href: '/admin/notices', icon: Bell },
+      { section: 'Academics & Schedule' },
+      { name: 'Class & Section Management', href: '/admin/classes-subjects', icon: BookOpen },
+      { name: 'Subject Management', href: '/admin/classes-subjects?tab=subjects', icon: BookOpen },
+      { name: 'Timetable Management', href: '/admin/timetable', icon: Clock },
+      { name: 'Examination Management', href: '/admin/exams', icon: Award },
+      { section: 'Campus Life & Reports' },
+      { name: 'Campus Notices', href: '/admin/notices', icon: Bell },
+      { name: 'Campus Reports', href: '/admin/exams/report-cards', icon: FileText },
     ],
     teacher: [
       { name: 'Dashboard', href: '/teacher', icon: LayoutDashboard },
@@ -95,12 +102,34 @@ export default function DashboardLayout({ children, role = 'admin' }) {
       { name: 'Notice Board', href: '/student/notices', icon: Bell },
       { name: 'Bus Tracking', href: '/student/bus', icon: Bus },
     ],
-    owner: [
-      { name: 'Executive Overview', href: '/owner', icon: BarChart3 },
-      { name: 'Fee Ledger', href: '/owner/fees', icon: CreditCard },
-      { name: 'All Students', href: '/owner/students', icon: GraduationCap },
-      { name: 'All Teachers', href: '/owner/teachers', icon: Users },
-      { name: 'Staff Payroll', href: '/owner/salaries', icon: DollarSign },
+    platform_owner: [
+      { name: 'Platform Dashboard', href: '/owner', icon: LayoutDashboard },
+      { section: 'Institution Management' },
+      { name: 'All Institutions', href: '/owner/institutions', icon: Building2 },
+      { name: 'Add New Institution', href: '/owner/institutions/create', icon: PlusCircle },
+      { section: 'SaaS Administration' },
+      { name: 'Subscription & Plans', href: '/owner/subscriptions', icon: CreditCard },
+      { name: 'Platform Users', href: '/owner/platform-users', icon: Users },
+      { name: 'Billing Management', href: '/owner/billing', icon: DollarSign },
+      { name: 'Platform Reports', href: '/owner/reports', icon: BarChart3 },
+      { name: 'Audit Logs', href: '/owner/audit-logs', icon: ShieldCheck },
+      { name: 'Platform Settings', href: '/owner/settings', icon: Sparkles },
+    ],
+    institution_owner: [
+      { name: 'Institution Dashboard', href: '/owner', icon: LayoutDashboard },
+      { section: 'Institution Setup' },
+      { name: 'Institution Profile', href: '/owner/profile', icon: Building2 },
+      { name: 'Campus Management', href: '/owner/campuses', icon: School },
+      { name: 'Users & Roles', href: '/owner/users', icon: ShieldCheck },
+      { section: 'Academic Community' },
+      { name: 'Staff Management', href: '/owner/teachers', icon: Users },
+      { name: 'Student Management', href: '/owner/students', icon: GraduationCap },
+      { section: 'Finance & Governance' },
+      { name: 'Finance Overview', href: '/owner/fees', icon: CreditCard },
+      { name: 'Payroll Management', href: '/owner/salaries', icon: DollarSign },
+      { name: 'Institution Reports', href: '/owner/institution-reports', icon: BarChart3 },
+      { name: 'Subscription', href: '/owner/subscription', icon: CreditCard },
+      { name: 'Institution Settings', href: '/owner/institution-settings', icon: Sparkles },
     ],
     parent: [
       { name: 'Parent Dashboard', href: '/parent', icon: LayoutDashboard },
@@ -135,9 +164,9 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     ],
     owner: [
       { name: 'Overview', href: '/owner', icon: BarChart3 },
+      { name: 'Approvals', href: '/owner/approvals', icon: ShieldCheck },
       { name: 'Fee Ledger', href: '/owner/fees', icon: CreditCard },
-      { name: 'Students', href: '/owner/students', icon: GraduationCap },
-      { name: 'Teachers', href: '/owner/teachers', icon: Users },
+      { name: 'Payroll', href: '/owner/salaries', icon: DollarSign },
     ],
     parent: [
       { name: 'Home', href: '/parent', icon: LayoutDashboard },
@@ -147,13 +176,21 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     ],
   }[role] || [];
 
-  const navItems = roleNavItems[role] || roleNavItems.admin;
+  const navItems = role === 'owner'
+    ? (isPlatformOwner ? roleNavItems.platform_owner : roleNavItems.institution_owner)
+    : (roleNavItems[role] || roleNavItems.admin);
+
+  const displayPortalTitle = role === 'owner'
+    ? (isPlatformOwner ? 'Platform Owner' : 'Institution Owner')
+    : role === 'admin'
+    ? 'Campus Admin'
+    : `${role.charAt(0).toUpperCase() + role.slice(1)} Portal`;
 
   const roleGradients = {
     admin: 'from-blue-600 via-indigo-600 to-indigo-800',
     teacher: 'from-emerald-600 via-teal-600 to-teal-800',
     student: 'from-violet-600 via-purple-600 to-purple-800',
-    owner: 'from-amber-600 via-orange-600 to-orange-800',
+    owner: isPlatformOwner ? 'from-purple-600 via-indigo-700 to-slate-900' : 'from-amber-600 via-orange-600 to-orange-800',
     parent: 'from-cyan-600 via-sky-600 to-sky-800',
   };
 
@@ -161,7 +198,7 @@ export default function DashboardLayout({ children, role = 'admin' }) {
     admin: 'bg-blue-50 text-blue-700 border-blue-200',
     teacher: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     student: 'bg-violet-50 text-violet-700 border-violet-200',
-    owner: 'bg-amber-50 text-amber-700 border-amber-200',
+    owner: isPlatformOwner ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-amber-50 text-amber-700 border-amber-200',
     parent: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   };
 
@@ -193,7 +230,7 @@ export default function DashboardLayout({ children, role = 'admin' }) {
               <div>
                 <span className="font-black text-lg tracking-tight block text-white">Digital Crowd</span>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 block">
-                  {role} Portal
+                  {displayPortalTitle}
                 </span>
               </div>
             </Link>
@@ -215,38 +252,47 @@ export default function DashboardLayout({ children, role = 'admin' }) {
                 <div className="text-xs font-bold text-white truncate">{user?.name || 'Authorized User'}</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${roleBadgeColors[role] || roleBadgeColors.admin}`}>
-                    {user?.role || role}
+                    {role === 'owner' ? (isPlatformOwner ? 'PLATFORM OWNER' : 'INSTITUTION OWNER') : role === 'admin' ? 'CAMPUS ADMIN' : (user?.role || role).toUpperCase()}
                   </span>
                 </div>
+                {user?.institutionName && (
+                  <div className="text-[10px] text-slate-400 truncate mt-1 font-medium">
+                    {user.institutionName}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Navigation Links Scrollable */}
           <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1.5 scrollbar-thin">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-3 py-1">
-              Main Menu
-            </div>
-            {navItems.map((item) => {
+            {navItems.map((item, idx) => {
+              if (item.section) {
+                return (
+                  <div key={`sec-${idx}`} className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-400/90 px-3 pt-3 pb-1">
+                    {item.section}
+                  </div>
+                );
+              }
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href.split('?')[0] && (item.href.includes('?') ? (typeof window !== 'undefined' && window.location.search === item.href.slice(item.href.indexOf('?'))) : true);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
                   className={`
-                    flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-semibold transition-all group
+                    flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group
                     ${isActive 
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-bold' 
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/70'}
                   `}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
-                    <span>{item.name}</span>
+                    <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                    <span className="text-xs">{item.name}</span>
                   </div>
-                  <ChevronRight className={`w-4 h-4 opacity-40 group-hover:opacity-100 transition-opacity ${isActive ? 'opacity-100' : ''}`} />
+                  <ChevronRight className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity ${isActive ? 'opacity-100' : ''}`} />
                 </Link>
               );
             })}
@@ -281,10 +327,15 @@ export default function DashboardLayout({ children, role = 'admin' }) {
 
             <div>
               <h1 className="text-base sm:text-xl font-extrabold text-slate-900 capitalize tracking-tight flex items-center gap-2">
-                <span>{role} Workspace</span>
+                <span>{displayPortalTitle}</span>
+                {user?.institutionName && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hidden md:inline-flex">
+                    {user.institutionName}
+                  </span>
+                )}
               </h1>
               <p className="text-[11px] text-slate-500 hidden sm:block">
-                Digital Crowd Academic Platform &bull; Session Active
+                {isPlatformOwner ? 'Digital Crowd SaaS Platform • Global Multi-Tenant Administration' : (user?.campusName ? `${user.campusName} • Operational Session Active` : 'Digital Crowd Academic Platform • Session Active')}
               </p>
             </div>
           </div>
